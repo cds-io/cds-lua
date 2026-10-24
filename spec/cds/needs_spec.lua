@@ -33,8 +33,8 @@ describe("cds.needs", function()
       assert.are.same({}, needs.missing({ probe = { "here", "also" } }))
     end)
 
-    it("names a function that is not there, and a field that is not a function", function()
-      assert.are.same({ "probe.gone", "probe.value" }, needs.missing({ probe = { "here", "gone", "value" } }))
+    it("names what is not there; a table or a value under the name counts as there", function()
+      assert.are.same({ "probe.gone" }, needs.missing({ probe = { "here", "gone", "value" } }))
     end)
 
     it("counts every function of a module that does not load", function()
@@ -53,9 +53,9 @@ describe("cds.needs", function()
 
     it("is one sentence naming the plugin, the functions and the remedy", function()
       assert.are.equal(
-        "a.nvim needs cds-lua with probe.gone, probe.value: "
+        "a.nvim needs cds-lua with probe.gone, probe.nope: "
           .. "install cds-io/cds-lua at the commit lazy.lua pins, or update it",
-        needs.check("a.nvim", { probe = { "gone", "value" } })
+        needs.check("a.nvim", { probe = { "gone", "nope" } })
       )
     end)
   end)
