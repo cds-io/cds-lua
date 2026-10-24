@@ -10,6 +10,7 @@
 --
 -- bpaf parses a command line into values; this renders values into one. The
 -- direction is reversed and the structure is the same.
+---@class cds.argv
 local M = {}
 
 ---@class cds.argv.Value
@@ -220,4 +221,4 @@ function M.command(fixed, values)
   return vim.list_extend(argv, values)
 end
 
-return require("cds.module")("argv", M)
+return require("cds.module").wrap("argv", M)

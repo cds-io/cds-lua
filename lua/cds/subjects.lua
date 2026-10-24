@@ -6,6 +6,7 @@
 -- the editor.
 local csv = require("cds.csv")
 
+---@class cds.subjects
 local M = {}
 
 ---@class cds.subjects.Entry
@@ -185,4 +186,4 @@ function M.tree(entries, order)
   return roots
 end
 
-return require("cds.module")("subjects", M)
+return require("cds.module").wrap("subjects", M)

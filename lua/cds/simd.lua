@@ -5,6 +5,7 @@
 -- plain tables out; nothing here names the editor.
 local mentions = require("cds.mentions")
 
+---@class cds.simd
 local M = {}
 
 ---@class cds.simd.Mention
@@ -92,4 +93,4 @@ function M.number(value)
   return digits and number(digits) or nil
 end
 
-return require("cds.module")("simd", M)
+return require("cds.module").wrap("simd", M)

@@ -4,6 +4,7 @@
 -- JSON string. Exit 44 is "item not found".
 local proc = require("cds.proc")
 
+---@class cds.secrets.keychain
 local M = {}
 
 local NOT_FOUND = 44
@@ -64,4 +65,4 @@ function M.open(spec)
   return store
 end
 
-return require("cds.module")("secrets.keychain", M)
+return require("cds.module").wrap("secrets.keychain", M)

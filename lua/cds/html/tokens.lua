@@ -5,6 +5,7 @@
 -- repairs. Plain strings in, plain tables out.
 local fp = require("cds.fp")
 
+---@class cds.html.tokens
 local M = {}
 
 ---@class cds.html.Token
@@ -182,4 +183,4 @@ function M.tokens(lines)
   return tokens
 end
 
-return require("cds.module")("html.tokens", M)
+return require("cds.module").wrap("html.tokens", M)

@@ -4,6 +4,7 @@
 -- started.
 local async = require("cds.async")
 
+---@class cds.proc
 local M = {}
 
 ---@class cds.proc.Result
@@ -52,4 +53,4 @@ function M.run(argv, opts)
   }
 end
 
-return require("cds.module")("proc", M)
+return require("cds.module").wrap("proc", M)

@@ -9,6 +9,7 @@ local tree = require("cds.html.tree")
 local inline = require("cds.html.inline")
 local tokens = require("cds.html.tokens")
 
+---@class cds.html.blocks
 local M = {}
 
 local squash, plain, classes = tokens.squash, tree.plain, tree.classes
@@ -437,4 +438,4 @@ function M.head(lines)
   }
 end
 
-return require("cds.module")("html.blocks", M)
+return require("cds.module").wrap("html.blocks", M)

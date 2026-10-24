@@ -6,6 +6,7 @@
 --
 -- Ported from crosscut's activity module; the autocmd name and the clock are
 -- parameters so the file carries nothing of either plugin.
+---@class cds.activity
 local M = {}
 
 ---@class cds.activity.Options
@@ -123,4 +124,4 @@ function Activity:reset()
   self:stop_timer()
 end
 
-return require("cds.module")("activity", M)
+return require("cds.module").wrap("activity", M)

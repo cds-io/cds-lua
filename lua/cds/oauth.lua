@@ -3,6 +3,7 @@
 -- scopes and credentials arrive in `client`.
 local async = require("cds.async")
 
+---@class cds.oauth
 local M = {}
 
 --- The HTTP module; specs replace it.
@@ -275,4 +276,4 @@ function M.session(opts)
   return require("cds.oauth.session").new(opts)
 end
 
-return require("cds.module")("oauth", M)
+return require("cds.module").wrap("oauth", M)

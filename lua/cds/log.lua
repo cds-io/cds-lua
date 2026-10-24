@@ -5,6 +5,7 @@
 --
 -- The logger records what it is given. Keeping secrets out is the caller's
 -- job: pass names and outcomes, never headers, bodies or tokens.
+---@class cds.log
 local M = {}
 
 local LEVELS = { off = 0, info = 1, debug = 2 }
@@ -76,4 +77,4 @@ function M.new(opts)
   return setmetatable({ path = opts.path, level = level }, Log)
 end
 
-return require("cds.module")("log", M)
+return require("cds.module").wrap("log", M)

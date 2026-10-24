@@ -6,6 +6,7 @@
 -- reduce the final accumulator, find the item, any and all a boolean. The
 -- helpers do not modify the input list. The function argument comes last,
 -- so one written out over several lines reads as a block.
+---@class cds.fp
 local M = {}
 
 -- fn(item, index) for each item, in order. A nil result is an error: it would
@@ -171,4 +172,4 @@ function M.unique(list, key)
   return out
 end
 
-return require("cds.module")("fp", M)
+return require("cds.module").wrap("fp", M)

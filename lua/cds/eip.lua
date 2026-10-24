@@ -4,6 +4,7 @@
 -- entries. Plain lines in, plain tables out; nothing here names the editor.
 local mentions = require("cds.mentions")
 
+---@class cds.eip
 local M = {}
 
 ---@class cds.eip.Heading
@@ -356,4 +357,4 @@ function M.listing(lines)
   return entries
 end
 
-return require("cds.module")("eip", M)
+return require("cds.module").wrap("eip", M)

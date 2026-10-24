@@ -13,6 +13,7 @@
 local fp = require("cds.fp")
 local module = require("cds.module")
 
+---@class cds.needs
 local M = {}
 
 -- The stack as debug.getinfo and error count it from inside a metamethod:
@@ -122,4 +123,4 @@ function M.strict(plugin, capabilities)
   end)
 end
 
-return require("cds.module")("needs", M)
+return require("cds.module").wrap("needs", M)

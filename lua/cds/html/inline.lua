@@ -6,6 +6,7 @@ local fp = require("cds.fp")
 local tree = require("cds.html.tree")
 local tokens = require("cds.html.tokens")
 
+---@class cds.html.inline
 local M = {}
 
 local squash = tokens.squash
@@ -197,4 +198,4 @@ function M.inline(children, ctx)
   return b.finish()
 end
 
-return require("cds.module")("html.inline", M)
+return require("cds.module").wrap("html.inline", M)

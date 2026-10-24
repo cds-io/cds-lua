@@ -5,6 +5,7 @@
 -- plugin that reads RFCs.
 local fp = require("cds.fp")
 
+---@class cds.rfc
 local M = {}
 
 ---@class cds.rfc.Section
@@ -407,4 +408,4 @@ function M.index(lines)
   return entries
 end
 
-return require("cds.module")("rfc", M)
+return require("cds.module").wrap("rfc", M)

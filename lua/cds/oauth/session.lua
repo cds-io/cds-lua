@@ -22,6 +22,7 @@ local async = require("cds.async")
 local Session = {}
 Session.__index = Session
 
+---@class cds.oauth.session
 local M = {}
 
 -- Seconds of remaining life below which the access token is refreshed early.
@@ -165,4 +166,4 @@ function Session:token()
   return async.await(self.refreshing)
 end
 
-return require("cds.module")("oauth.session", M)
+return require("cds.module").wrap("oauth.session", M)

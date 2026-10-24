@@ -4,6 +4,7 @@
 -- the captures mean); the scan gives every mention its byte range, blanks
 -- the links before the bare pass (so a link's text is found once and
 -- every position still counts from the line's start), and sorts.
+---@class cds.mentions
 local M = {}
 
 ---@class cds.Mention
@@ -72,4 +73,4 @@ function M.scan(line, links, bare)
   return found
 end
 
-return require("cds.module")("mentions", M)
+return require("cds.module").wrap("mentions", M)

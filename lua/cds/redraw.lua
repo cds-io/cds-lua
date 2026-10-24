@@ -7,6 +7,7 @@
 -- whose text lands later (a listing filled page by page); `windows` is both
 -- around a draw that returns with its text. Dependents of the buffer's text
 -- (a sidebar, folds) are the caller's to refresh, with the windows answered.
+---@class cds.redraw
 local M = {}
 
 ---@class cds.redraw.Keep
@@ -73,4 +74,4 @@ function M.windows(buf, draw, keep)
   return places.wins
 end
 
-return require("cds.module")("redraw", M)
+return require("cds.module").wrap("redraw", M)

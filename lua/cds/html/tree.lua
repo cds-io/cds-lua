@@ -5,6 +5,7 @@
 local fp = require("cds.fp")
 local tokens = require("cds.html.tokens")
 
+---@class cds.html.tree
 local M = {}
 
 ---@class cds.html.Node
@@ -191,4 +192,4 @@ function M.by_id(root, id)
   end)
 end
 
-return require("cds.module")("html.tree", M)
+return require("cds.module").wrap("html.tree", M)

@@ -49,7 +49,7 @@ describe("cds.needs", function()
   describe("missing, against a module that answers every name", function()
     it("still reports what the module itself does not hold", function()
       package.preload["cds.wrapped"] = function()
-        return require("cds.module")("wrapped", { here = function() end })
+        return require("cds.module").wrap("wrapped", { here = function() end })
       end
       assert.are.same({ "wrapped.gone" }, needs.missing({ wrapped = { "here", "gone" } }))
       package.preload["cds.wrapped"], package.loaded["cds.wrapped"] = nil, nil

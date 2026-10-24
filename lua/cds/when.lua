@@ -8,6 +8,7 @@
 -- reading is strict: a token no rule takes is an error, never skipped.
 local datetime = require("cds.datetime")
 
+---@class cds.when
 local M = {}
 
 -- Words -----------------------------------------------------------------------
@@ -677,4 +678,4 @@ function M.parse(text, ctx)
   return { start = start, finish = finish, all_day = false, tz = tz }
 end
 
-return require("cds.module")("when", M)
+return require("cds.module").wrap("when", M)

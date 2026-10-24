@@ -44,9 +44,8 @@ function M.is_fallback(value)
   return fallbacks[value] == true
 end
 
--- `require("cds.module")(name, M)` is the form every module uses
-return setmetatable(M, {
-  __call = function(_, name, mod)
-    return M.wrap(name, mod)
-  end,
-})
+-- `return require("cds.module").wrap(name, M)` is the form every module ends
+-- with. The call goes through the named function because the language server
+-- carries `wrap`'s generic (the module's own type comes back out) and loses it
+-- through a `__call` metamethod, where the result is unknown to every caller.
+return M

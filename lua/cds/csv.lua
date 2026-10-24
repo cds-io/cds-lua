@@ -3,6 +3,7 @@
 -- inside it is written twice), and a header line that names the fields.
 -- A field spanning lines is out of scope. Plain strings in, plain tables
 -- out; nothing here names the editor.
+---@class cds.csv
 local M = {}
 
 --- The fields of one line. An unterminated quote is refused.
@@ -71,4 +72,4 @@ function M.records(lines)
   return records
 end
 
-return require("cds.module")("csv", M)
+return require("cds.module").wrap("csv", M)

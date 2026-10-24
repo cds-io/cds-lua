@@ -190,4 +190,4 @@ function M.http_time(t)
   )
 end
 
-return require("cds.module")("w3c", M)
+return require("cds.module").wrap("w3c", M)

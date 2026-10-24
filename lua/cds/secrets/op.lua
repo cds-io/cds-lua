@@ -4,6 +4,7 @@
 -- Every failure exits 1, so absence is recognised from the message text.
 local proc = require("cds.proc")
 
+---@class cds.secrets.op
 local M = {}
 
 -- op 2.39 words absence two ways: `read` and `delete` say `"<title>" isn't an
@@ -99,4 +100,4 @@ function M.open(spec)
   return store
 end
 
-return require("cds.module")("secrets.op", M)
+return require("cds.module").wrap("secrets.op", M)

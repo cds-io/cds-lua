@@ -1,7 +1,7 @@
 local module = require("cds.module")
 
 describe("cds.module", function()
-  local M = module("probe", {
+  local M = module.wrap("probe", {
     here = function()
       return "here"
     end,

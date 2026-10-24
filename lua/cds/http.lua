@@ -4,6 +4,7 @@
 -- failure returns nil plus a classified error.
 local proc = require("cds.proc")
 
+---@class cds.http
 local M = {}
 
 ---@class cds.http.Request
@@ -167,4 +168,4 @@ function M.request(req)
   return res, err
 end
 
-return require("cds.module")("http", M)
+return require("cds.module").wrap("http", M)

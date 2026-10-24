@@ -5,6 +5,7 @@
 -- cds.eip. Plain lines in, plain tables out; nothing here names the editor.
 local mentions = require("cds.mentions")
 
+---@class cds.bip
 local M = {}
 
 ---@class cds.bip.Heading
@@ -548,4 +549,4 @@ function M.index(lines)
   return entries
 end
 
-return require("cds.module")("bip", M)
+return require("cds.module").wrap("bip", M)

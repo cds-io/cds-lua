@@ -3,6 +3,7 @@
 -- through bind or traverse; one that cannot goes through map, so a reader
 -- can tell the two apart at the call. Where a step cannot fail and there is
 -- no error to carry, fp.map is the plain list map.
+---@class cds.result
 local M = {}
 
 -- The value through `fn`, which may refuse (nil, err); the error untouched.
@@ -40,4 +41,4 @@ function M.traverse(values, fn)
   return out
 end
 
-return require("cds.module")("result", M)
+return require("cds.module").wrap("result", M)

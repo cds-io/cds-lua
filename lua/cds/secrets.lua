@@ -4,6 +4,7 @@
 --   value        present
 --   nil, nil     absent
 --   nil, message the backend could not answer
+---@class cds.secrets
 local M = {}
 
 ---@class cds.secrets.Store
@@ -48,4 +49,4 @@ function M.open(spec)
   return backend(spec)
 end
 
-return require("cds.module")("secrets", M)
+return require("cds.module").wrap("secrets", M)

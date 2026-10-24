@@ -6,6 +6,7 @@
 -- at midnight (Chile), 00:00 on the changeover day does not exist and mktime
 -- moves it, so a date normalised at midnight can come back a day off; noon
 -- exists on every day.
+---@class cds.datetime
 local M = {}
 
 ---@class cds.DateTime
@@ -250,4 +251,4 @@ function M.parse(text, format)
   return dt
 end
 
-return require("cds.module")("datetime", M)
+return require("cds.module").wrap("datetime", M)

@@ -207,4 +207,4 @@ function Task.all(tasks)
   end)
 end
 
-return require("cds.module")("task", Task)
+return require("cds.module").wrap("task", Task)
