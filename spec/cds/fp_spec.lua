@@ -339,6 +339,35 @@ describe("fp", function()
   end)
 end)
 
+describe("fp.flat_map", function()
+  it("joins the lists the function answers, in order", function()
+    assert.are.same(
+      { 1, 1, 2, 2 },
+      fp.flat_map({ 1, 2 }, function(item)
+        return { item, item }
+      end)
+    )
+  end)
+
+  it("drops an item whose answer is empty, and passes the index", function()
+    assert.are.same(
+      { "b2" },
+      fp.flat_map({ "a", "b" }, function(item, index)
+        return index == 2 and { item .. index } or {}
+      end)
+    )
+  end)
+end)
+
+describe("fp.keys", function()
+  it("answers every key once, in some order", function()
+    local keys = fp.keys({ b = 1, a = 2 })
+    table.sort(keys)
+    assert.are.same({ "a", "b" }, keys)
+    assert.are.same({}, fp.keys({}))
+  end)
+end)
+
 describe("fp.each", function()
   it("calls fn with each item and its index, in order, and answers nothing", function()
     local seen = {}

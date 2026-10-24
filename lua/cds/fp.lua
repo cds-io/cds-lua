@@ -67,6 +67,28 @@ function M.find_map(list, fn)
   end
 end
 
+-- The lists fn(item, index) answers, joined in order: a map whose answers
+-- are lists, flattened one level.
+function M.flat_map(list, fn)
+  local out = {}
+  for index, item in ipairs(list) do
+    for _, found in ipairs(fn(item, index)) do
+      out[#out + 1] = found
+    end
+  end
+  return out
+end
+
+-- The keys of a table, as a list in no particular order; sort it when the
+-- order matters.
+function M.keys(t)
+  local out = {}
+  for key in pairs(t) do
+    out[#out + 1] = key
+  end
+  return out
+end
+
 -- fn(item, index) for each item, in order, for its effect; the answers are
 -- dropped. The counterpart of map where the work is the point: a cursor
 -- set in every window showing a buffer.

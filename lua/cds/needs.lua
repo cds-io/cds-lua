@@ -9,6 +9,8 @@
 --
 -- The one check a plugin keeps for itself is whether this module loads: a
 -- library too old to carry it fails that `require`, which is the answer.
+local fp = require("cds.fp")
+
 local M = {}
 
 ---@alias cds.needs.Capabilities table<string, string[]>  -- cds module to the functions used
@@ -17,10 +19,7 @@ local M = {}
 ---@param capabilities cds.needs.Capabilities
 ---@return string[]
 local function modules(capabilities)
-  local names = {}
-  for name in pairs(capabilities) do
-    names[#names + 1] = name
-  end
+  local names = fp.keys(capabilities)
   table.sort(names)
   return names
 end
@@ -31,16 +30,15 @@ end
 ---@param capabilities cds.needs.Capabilities
 ---@return string[]
 function M.missing(capabilities)
-  local out = {}
-  for _, name in ipairs(modules(capabilities)) do
+  return fp.flat_map(modules(capabilities), function(name)
     local ok, mod = pcall(require, "cds." .. name)
-    for _, fn in ipairs(capabilities[name]) do
-      if not (ok and type(mod) == "table" and type(mod[fn]) == "function") then
-        out[#out + 1] = name .. "." .. fn
-      end
-    end
-  end
-  return out
+    local lacking = fp.filter(capabilities[name], function(fn)
+      return not (ok and type(mod) == "table" and type(mod[fn]) == "function")
+    end)
+    return fp.map(lacking, function(fn)
+      return name .. "." .. fn
+    end)
+  end)
 end
 
 --- nil when everything declared is here; otherwise one sentence for the
@@ -67,15 +65,15 @@ end
 ---@param plugin string
 ---@param capabilities cds.needs.Capabilities
 function M.strict(plugin, capabilities)
+  local names = modules(capabilities)
   local real = {}
-  for name in pairs(capabilities) do
+  fp.each(names, function(name)
     real[name] = require("cds." .. name)
-  end
-  for name, fns in pairs(capabilities) do
-    local allowed = {}
-    for _, fn in ipairs(fns) do
-      allowed[fn] = true
-    end
+  end)
+  fp.each(names, function(name)
+    local allowed = fp.set(capabilities[name], function(fn)
+      return fn
+    end)
     package.loaded["cds." .. name] = setmetatable({}, {
       __index = function(_, key)
         if not allowed[key] then
@@ -84,7 +82,7 @@ function M.strict(plugin, capabilities)
         return real[name][key]
       end,
     })
-  end
+  end)
 end
 
 return M
