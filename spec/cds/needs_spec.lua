@@ -79,8 +79,7 @@ describe("cds.needs", function()
 
     it("is one sentence naming the plugin, the functions and the remedy", function()
       assert.are.equal(
-        "a.nvim needs cds-lua with probe.gone, probe.nope: "
-          .. "install cds-io/cds-lua at the commit lazy.lua pins, or update it",
+        "a.nvim needs cds-lua with probe.gone, probe.nope: install or update cds-io/cds-lua",
         needs.check("a.nvim", { probe = { "gone", "nope" } })
       )
     end)

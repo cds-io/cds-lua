@@ -69,10 +69,7 @@ function M.check(plugin, capabilities)
   if #missing == 0 then
     return nil
   end
-  return ("%s needs cds-lua with %s: install cds-io/cds-lua at the commit lazy.lua pins, or update it"):format(
-    plugin,
-    table.concat(missing, ", ")
-  )
+  return ("%s needs cds-lua with %s: install or update cds-io/cds-lua"):format(plugin, table.concat(missing, ", "))
 end
 
 --- Whether a function is one of this library's own: its chunk is a file
