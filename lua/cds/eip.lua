@@ -356,4 +356,4 @@ function M.listing(lines)
   return entries
 end
 
-return M
+return require("cds.module")("eip", M)

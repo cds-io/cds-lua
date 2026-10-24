@@ -99,4 +99,4 @@ function M.open(spec)
   return store
 end
 
-return M
+return require("cds.module")("secrets.op", M)

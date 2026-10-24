@@ -48,4 +48,4 @@ function M.open(spec)
   return backend(spec)
 end
 
-return M
+return require("cds.module")("secrets", M)

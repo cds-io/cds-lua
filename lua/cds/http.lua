@@ -167,4 +167,4 @@ function M.request(req)
   return res, err
 end
 
-return M
+return require("cds.module")("http", M)

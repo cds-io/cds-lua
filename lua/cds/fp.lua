@@ -171,4 +171,4 @@ function M.unique(list, key)
   return out
 end
 
-return M
+return require("cds.module")("fp", M)

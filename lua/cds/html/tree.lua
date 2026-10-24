@@ -191,4 +191,4 @@ function M.by_id(root, id)
   end)
 end
 
-return M
+return require("cds.module")("html.tree", M)

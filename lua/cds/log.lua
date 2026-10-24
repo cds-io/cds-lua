@@ -76,4 +76,4 @@ function M.new(opts)
   return setmetatable({ path = opts.path, level = level }, Log)
 end
 
-return M
+return require("cds.module")("log", M)

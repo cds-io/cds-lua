@@ -275,4 +275,4 @@ function M.session(opts)
   return require("cds.oauth.session").new(opts)
 end
 
-return M
+return require("cds.module")("oauth", M)

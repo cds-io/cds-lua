@@ -40,4 +40,4 @@ function M.traverse(values, fn)
   return out
 end
 
-return M
+return require("cds.module")("result", M)

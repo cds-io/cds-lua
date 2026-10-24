@@ -207,4 +207,4 @@ function Task.all(tasks)
   end)
 end
 
-return Task
+return require("cds.module")("task", Task)

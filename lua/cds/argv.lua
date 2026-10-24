@@ -220,4 +220,4 @@ function M.command(fixed, values)
   return vim.list_extend(argv, values)
 end
 
-return M
+return require("cds.module")("argv", M)

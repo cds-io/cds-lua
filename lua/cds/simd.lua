@@ -92,4 +92,4 @@ function M.number(value)
   return digits and number(digits) or nil
 end
 
-return M
+return require("cds.module")("simd", M)

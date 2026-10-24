@@ -677,4 +677,4 @@ function M.parse(text, ctx)
   return { start = start, finish = finish, all_day = false, tz = tz }
 end
 
-return M
+return require("cds.module")("when", M)

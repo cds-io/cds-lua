@@ -7,10 +7,10 @@
 local tokens = require("cds.html.tokens")
 local blocks = require("cds.html.blocks")
 
-return {
+return require("cds.module")("html", {
   tokens = tokens.tokens,
   decode = tokens.decode,
   squash = tokens.squash,
   blocks = blocks.blocks,
   head = blocks.head,
-}
+})

@@ -72,4 +72,4 @@ function M.scan(line, links, bare)
   return found
 end
 
-return M
+return require("cds.module")("mentions", M)

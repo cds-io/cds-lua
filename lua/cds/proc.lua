@@ -52,4 +52,4 @@ function M.run(argv, opts)
   }
 end
 
-return M
+return require("cds.module")("proc", M)

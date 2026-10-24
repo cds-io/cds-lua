@@ -250,4 +250,4 @@ function M.parse(text, format)
   return dt
 end
 
-return M
+return require("cds.module")("datetime", M)

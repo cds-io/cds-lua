@@ -73,4 +73,4 @@ function M.windows(buf, draw, keep)
   return places.wins
 end
 
-return M
+return require("cds.module")("redraw", M)

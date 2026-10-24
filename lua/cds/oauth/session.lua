@@ -165,4 +165,4 @@ function Session:token()
   return async.await(self.refreshing)
 end
 
-return M
+return require("cds.module")("oauth.session", M)

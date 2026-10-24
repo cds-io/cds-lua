@@ -123,4 +123,4 @@ function Activity:reset()
   self:stop_timer()
 end
 
-return M
+return require("cds.module")("activity", M)

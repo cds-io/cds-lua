@@ -182,4 +182,4 @@ function M.tokens(lines)
   return tokens
 end
 
-return M
+return require("cds.module")("html.tokens", M)

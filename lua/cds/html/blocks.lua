@@ -437,4 +437,4 @@ function M.head(lines)
   }
 end
 
-return M
+return require("cds.module")("html.blocks", M)

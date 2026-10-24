@@ -64,4 +64,4 @@ function M.open(spec)
   return store
 end
 
-return M
+return require("cds.module")("secrets.keychain", M)

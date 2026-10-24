@@ -548,4 +548,4 @@ function M.index(lines)
   return entries
 end
 
-return M
+return require("cds.module")("bip", M)

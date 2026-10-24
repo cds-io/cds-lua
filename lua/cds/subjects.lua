@@ -185,4 +185,4 @@ function M.tree(entries, order)
   return roots
 end
 
-return M
+return require("cds.module")("subjects", M)

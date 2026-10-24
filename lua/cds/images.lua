@@ -158,4 +158,4 @@ function M.clear_all(buf)
   placements[buf] = nil
 end
 
-return M
+return require("cds.module")("images", M)

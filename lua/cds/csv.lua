@@ -71,4 +71,4 @@ function M.records(lines)
   return records
 end
 
-return M
+return require("cds.module")("csv", M)

@@ -197,4 +197,4 @@ function M.inline(children, ctx)
   return b.finish()
 end
 
-return M
+return require("cds.module")("html.inline", M)

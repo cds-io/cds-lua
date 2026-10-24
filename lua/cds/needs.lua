@@ -11,8 +11,14 @@
 -- The one check a plugin keeps for itself is whether this module loads: a
 -- library too old to carry it fails that `require`, which is the answer.
 local fp = require("cds.fp")
+local module = require("cds.module")
 
 local M = {}
+
+-- The stack as debug.getinfo and error count it from inside a metamethod:
+-- level 1 is the metamethod itself, level 2 the function whose `module.name`
+-- invoked it, the one a report is about.
+local INDEXER = 2
 
 ---@alias cds.needs.Capabilities table<string, string[]>  -- cds module to the functions used
 
@@ -25,6 +31,17 @@ local function modules(capabilities)
   return names
 end
 
+--- Whether the module has something under the name: a lookup that answers
+--- nothing, or answers the library's own fallback for a missing name
+--- (cds.module), is a name it lacks.
+---@param mod table
+---@param fn string
+---@return boolean
+local function has(mod, fn)
+  local value = mod[fn]
+  return value ~= nil and not module.is_fallback(value)
+end
+
 --- The capabilities the library present lacks, as "fp.filter" names,
 --- modules in name order and each in declaration order: a name the module
 --- has nothing under, or every name of a module that does not load.
@@ -34,7 +51,7 @@ function M.missing(capabilities)
   return fp.flat_map(modules(capabilities), function(name)
     local ok, mod = pcall(require, "cds." .. name)
     local lacking = fp.filter(capabilities[name], function(fn)
-      return not (ok and type(mod) == "table" and mod[fn] ~= nil)
+      return not (ok and type(mod) == "table" and has(mod, fn))
     end)
     return fp.map(lacking, function(fn)
       return name .. "." .. fn
@@ -58,22 +75,22 @@ function M.check(plugin, capabilities)
   )
 end
 
---- Whether the function making an access is one of this library's own:
---- its chunk is a file under lua/cds/. The library's modules use each
---- other beyond any one plugin's declaration, so they pass.
----@param level integer  -- the stack level of the accessing function
+--- Whether a function is one of this library's own: its chunk is a file
+--- under lua/cds/. The library's modules use each other beyond any one
+--- plugin's declaration, so they pass.
+---@param info table|nil  -- debug.getinfo(_, "S") of the function; nil for none
 ---@return boolean
-local function from_library(level)
-  local info = debug.getinfo(level, "S")
+local function in_library(info)
   return info ~= nil and info.source:find("lua/cds/", 1, true) ~= nil
 end
 
---- Each declared module replaced, in package.loaded, by a proxy that answers
---- the declared names and raises on any other, naming the plugin whose
---- declaration is short. The library's own modules pass through, since they
---- use each other beyond the declaration; a module the tier cannot load (one
---- that needs `vim`, under plain busted) is left alone. For a spec harness,
---- before any spec runs.
+--- Each declared module replaced, in package.loaded, by a proxy that holds
+--- the declared names the module has (so `missing` reads them as present)
+--- and raises on any other, naming the plugin whose declaration is short.
+--- The library's own modules pass through, since they use each other beyond
+--- the declaration; a module the tier cannot load (one that needs `vim`,
+--- under plain busted) is left alone. For a spec harness, before any spec
+--- runs.
 ---@param plugin string
 ---@param capabilities cds.needs.Capabilities
 function M.strict(plugin, capabilities)
@@ -88,13 +105,16 @@ function M.strict(plugin, capabilities)
     return real[name] ~= nil
   end)
   fp.each(present, function(name)
-    local allowed = fp.set(capabilities[name], function(fn)
-      return fn
+    local proxy = {}
+    fp.each(capabilities[name], function(fn)
+      if has(real[name], fn) then
+        proxy[fn] = real[name][fn]
+      end
     end)
-    package.loaded["cds." .. name] = setmetatable({}, {
+    package.loaded["cds." .. name] = setmetatable(proxy, {
       __index = function(_, key)
-        if not allowed[key] and not from_library(3) then
-          error(("%s uses cds.%s.%s without declaring it in its needs"):format(plugin, name, tostring(key)), 2)
+        if not in_library(debug.getinfo(INDEXER, "S")) then
+          error(("%s uses cds.%s.%s without declaring it in its needs"):format(plugin, name, tostring(key)), INDEXER)
         end
         return real[name][key]
       end,
@@ -102,4 +122,4 @@ function M.strict(plugin, capabilities)
   end)
 end
 
-return M
+return require("cds.module")("needs", M)

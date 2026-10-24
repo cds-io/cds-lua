@@ -46,6 +46,32 @@ describe("cds.needs", function()
     end)
   end)
 
+  describe("missing, against a module that answers every name", function()
+    it("still reports what the module itself does not hold", function()
+      package.preload["cds.wrapped"] = function()
+        return require("cds.module")("wrapped", { here = function() end })
+      end
+      assert.are.same({ "wrapped.gone" }, needs.missing({ wrapped = { "here", "gone" } }))
+      package.preload["cds.wrapped"], package.loaded["cds.wrapped"] = nil, nil
+    end)
+
+    it("counts a name a module answers through a metatable of its own, as vim.async does", function()
+      package.preload["cds.lazyish"] = function()
+        return setmetatable({}, {
+          __index = function(_, key)
+            if key == "here" then
+              return function() end
+            end
+          end,
+        })
+      end
+      assert.are.same({ "lazyish.gone" }, needs.missing({ lazyish = { "here", "gone" } }))
+      needs.strict("a.nvim", { lazyish = { "here" } })
+      assert.are.equal("function", type(require("cds.lazyish").here))
+      package.preload["cds.lazyish"], package.loaded["cds.lazyish"] = nil, nil
+    end)
+  end)
+
   describe("check", function()
     it("is nil when nothing is missing", function()
       assert.is_nil(needs.check("a.nvim", { probe = { "here" } }))
@@ -90,6 +116,13 @@ describe("cds.needs", function()
       needs.strict("a.nvim", { probe = { "here" } })
       assert.are.equal("late", require("cds.late").go())
       package.preload["cds.late"], package.loaded["cds.late"] = nil, nil
+    end)
+
+    it("holds the declared names the module has, so a check under strict reads them as present", function()
+      needs.strict("a.nvim", { probe = { "here", "gone" } })
+      assert.are.same({}, needs.missing({ probe = { "here" } }))
+      assert.are.same({ "probe.gone" }, needs.missing({ probe = { "here", "gone" } }))
+      assert.are.equal("function", type(rawget(require("cds.probe"), "here")))
     end)
 
     it("leaves a module the tier cannot load alone", function()
