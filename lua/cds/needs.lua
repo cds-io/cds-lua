@@ -85,8 +85,11 @@ local function in_library(info)
 end
 
 --- Each declared module replaced, in package.loaded, by a proxy that holds
---- the declared names the module has (so `missing` reads them as present)
---- and raises on any other, naming the plugin whose declaration is short.
+--- nothing itself: a declared name reads from the real module, so a seam a
+--- spec replaces there (`proc.runner`) is what the plugin's own code reads;
+--- any other name raises, naming the plugin whose declaration is short; a
+--- write goes to the real module, since a plugin setting a hook the module
+--- leaves nil (`http.trace`) is not declaring a name it reads.
 --- The library's own modules pass through, since they use each other beyond
 --- the declaration; a module the tier cannot load (one that needs `vim`,
 --- under plain busted) is left alone. For a spec harness, before any spec
@@ -105,18 +108,18 @@ function M.strict(plugin, capabilities)
     return real[name] ~= nil
   end)
   fp.each(present, function(name)
-    local proxy = {}
-    fp.each(capabilities[name], function(fn)
-      if has(real[name], fn) then
-        proxy[fn] = real[name][fn]
-      end
+    local allowed = fp.set(capabilities[name], function(fn)
+      return fn
     end)
-    package.loaded["cds." .. name] = setmetatable(proxy, {
+    package.loaded["cds." .. name] = setmetatable({}, {
       __index = function(_, key)
-        if not in_library(debug.getinfo(INDEXER, "S")) then
+        if not allowed[key] and not in_library(debug.getinfo(INDEXER, "S")) then
           error(("%s uses cds.%s.%s without declaring it in its needs"):format(plugin, name, tostring(key)), INDEXER)
         end
         return real[name][key]
+      end,
+      __newindex = function(_, key, value)
+        real[name][key] = value
       end,
     })
   end)

@@ -118,11 +118,29 @@ describe("cds.needs", function()
       package.preload["cds.late"], package.loaded["cds.late"] = nil, nil
     end)
 
-    it("holds the declared names the module has, so a check under strict reads them as present", function()
+    it("reads a declared name from the real module, so a check under strict sees what is there", function()
       needs.strict("a.nvim", { probe = { "here", "gone" } })
       assert.are.same({}, needs.missing({ probe = { "here" } }))
       assert.are.same({ "probe.gone" }, needs.missing({ probe = { "here", "gone" } }))
-      assert.are.equal("function", type(rawget(require("cds.probe"), "here")))
+    end)
+
+    it("reads a seam a spec replaced on the real module, through the proxy", function()
+      local real = require("cds.probe")
+      needs.strict("a.nvim", { probe = { "here" } })
+      local replaced = function()
+        return "replaced"
+      end
+      require("cds.probe").here = replaced
+      assert.are.equal(replaced, real.here)
+      assert.are.equal("replaced", require("cds.probe").here())
+    end)
+
+    it("passes a write through to the real module, a hook being set rather than a name read", function()
+      local real = require("cds.probe")
+      needs.strict("a.nvim", { probe = { "here" } })
+      require("cds.probe").hook = "set"
+      assert.are.equal("set", real.hook)
+      assert.is_nil(rawget(require("cds.probe"), "hook"))
     end)
 
     it("leaves a module the tier cannot load alone", function()
