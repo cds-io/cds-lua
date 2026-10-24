@@ -58,26 +58,42 @@ function M.check(plugin, capabilities)
   )
 end
 
+--- Whether the function making an access is one of this library's own:
+--- its chunk is a file under lua/cds/. The library's modules use each
+--- other beyond any one plugin's declaration, so they pass.
+---@param level integer  -- the stack level of the accessing function
+---@return boolean
+local function from_library(level)
+  local info = debug.getinfo(level, "S")
+  return info ~= nil and info.source:find("lua/cds/", 1, true) ~= nil
+end
+
 --- Each declared module replaced, in package.loaded, by a proxy that answers
---- the declared names and raises on any other, naming the plugin
---- whose declaration is short. Every declared module is required for real
---- first, so a module that uses another internally keeps the real one.
---- For a spec harness, before any spec runs.
+--- the declared names and raises on any other, naming the plugin whose
+--- declaration is short. The library's own modules pass through, since they
+--- use each other beyond the declaration; a module the tier cannot load (one
+--- that needs `vim`, under plain busted) is left alone. For a spec harness,
+--- before any spec runs.
 ---@param plugin string
 ---@param capabilities cds.needs.Capabilities
 function M.strict(plugin, capabilities)
-  local names = modules(capabilities)
   local real = {}
-  fp.each(names, function(name)
-    real[name] = require("cds." .. name)
+  fp.each(modules(capabilities), function(name)
+    local ok, mod = pcall(require, "cds." .. name)
+    if ok then
+      real[name] = mod
+    end
   end)
-  fp.each(names, function(name)
+  local present = fp.filter(modules(capabilities), function(name)
+    return real[name] ~= nil
+  end)
+  fp.each(present, function(name)
     local allowed = fp.set(capabilities[name], function(fn)
       return fn
     end)
     package.loaded["cds." .. name] = setmetatable({}, {
       __index = function(_, key)
-        if not allowed[key] then
+        if not allowed[key] and not from_library(3) then
           error(("%s uses cds.%s.%s without declaring it in its needs"):format(plugin, name, tostring(key)), 2)
         end
         return real[name][key]

@@ -76,5 +76,33 @@ describe("cds.needs", function()
       needs.strict("a.nvim", { probe = { "here" }, over = { "go" } })
       assert.are.equal("went", require("cds.over").go())
     end)
+
+    it("lets the library's own files through, loaded after the proxies went in", function()
+      -- a module compiled as if it were lua/cds/late.lua, reaching an
+      -- undeclared name of a proxied module from inside the library
+      package.preload["cds.late"] = assert(load(
+        [[
+          local probe = require("cds.probe")
+          return { go = function() probe.also() return "late" end }
+        ]],
+        "@lua/cds/late.lua"
+      ))
+      needs.strict("a.nvim", { probe = { "here" } })
+      assert.are.equal("late", require("cds.late").go())
+      package.preload["cds.late"], package.loaded["cds.late"] = nil, nil
+    end)
+
+    it("leaves a module the tier cannot load alone", function()
+      package.preload["cds.needsvim"] = function()
+        error("attempt to index global 'vim'")
+      end
+      assert.has_no.errors(function()
+        needs.strict("a.nvim", { probe = { "here" }, needsvim = { "x" } })
+      end)
+      -- no proxy went in: what require leaves behind a failed load is its
+      -- own sentinel, never a table
+      assert.are_not.equal("table", type(package.loaded["cds.needsvim"]))
+      package.preload["cds.needsvim"], package.loaded["cds.needsvim"] = nil, nil
+    end)
   end)
 end)
