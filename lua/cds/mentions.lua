@@ -24,6 +24,7 @@ local M = {}
 local function each(line, form, add)
   local init = 1
   while init <= #line do
+    ---@type any[]   -- first, last, then the form's captures
     local found = { line:find(form[1], init) }
     local first, last = found[1], found[2]
     if not first then

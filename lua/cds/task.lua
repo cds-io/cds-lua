@@ -2,7 +2,7 @@
 -- one error; nil and false are valid successes. Only run starts effects.
 local async = require("cds.async")
 ---@class cds.Task
----@field private evaluate fun(): any, any
+---@field package evaluate fun(): any, any   -- read by the combinators, in this file only
 local Task = {}
 Task.__index = Task
 

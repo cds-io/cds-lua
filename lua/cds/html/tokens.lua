@@ -68,7 +68,7 @@ function M.decode(s)
   return (
     s:gsub("&(#?x?)(%w+);", function(form, body)
       if form == "#" then
-        return body:match("^%d+$") and utf8(tonumber(body)) or nil
+        return body:match("^%d+$") and utf8(assert(tonumber(body))) or nil
       elseif form == "#x" then
         return body:match("^%x+$") and utf8(tonumber(body, 16)) or nil
       end

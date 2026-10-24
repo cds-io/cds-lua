@@ -286,7 +286,10 @@ local function month_name_date(cur, ctx)
     count = 1 + day_tokens
   else
     day, day_tokens = day_number(cur, 0)
-    month = day and M.words.months[cur:word(day_tokens) or ""]
+    if not day then
+      return nil
+    end
+    month = M.words.months[cur:word(day_tokens) or ""]
     if not month then
       return nil
     end
@@ -365,8 +368,16 @@ end
 
 -- Times -------------------------------------------------------------------------
 
---- A time: "3pm", "9 AM", "9", "9:30", "0930", "315a", "14:00", "noon".
---- Returns { hour, min, meridiem?, span } and the tokens consumed.
+--- A time as written, before the meridiem is applied.
+---@class cds.when.Time
+---@field hour integer
+---@field min integer
+---@field meridiem string?   -- "am", "pm", or "24h" for a named time; nil when unwritten
+---@field span integer[]
+
+--- Reads a time: "3pm", "9 AM", "9", "9:30", "0930", "315a", "14:00", "noon".
+---@return cds.when.Time? time
+---@return integer? tokens   -- consumed; nil with no time
 local function parse_time(cur)
   local w = cur:word(0)
   if w and M.words.named_times[w] then

@@ -15,6 +15,10 @@ local M = {}
 
 ---@class cds.Activity
 ---@field runs table<integer, { kind: string, label: string, started: integer }>
+---@field next_id integer
+---@field timer uv.uv_timer_t?     -- running while anything is out
+---@field pattern string
+---@field now fun(): integer
 local Activity = {}
 Activity.__index = Activity
 
@@ -98,16 +102,15 @@ function Activity:busy()
   return next(self.runs) ~= nil
 end
 
---- `task` tracked from now to its completion, however it ends. The end is
+--- Tracks `task` from now to its completion, however it ends. The end is
 --- observed, never awaited: on this nightly a failing child fails the task
 --- awaiting it, and the tracker must not die with what it tracks. The finish
 --- is scheduled, since the completion callback may run in a fast event, where
 --- firing an autocmd is refused.
----@generic T
 ---@param kind string
 ---@param label string
----@param task T   -- a cds.async task (anything with on_complete)
----@return T task
+---@param task vim.async.Task   -- what cds.Task:run answers
+---@return vim.async.Task task
 function Activity:track(kind, label, task)
   local id = self:begin(kind, label)
   task:on_complete(function()

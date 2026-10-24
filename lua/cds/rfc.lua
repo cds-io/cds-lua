@@ -15,6 +15,16 @@ local M = {}
 ---@field line integer      -- the heading's line in the text
 ---@field toc_line integer  -- the row's line in the table of contents
 
+--- A row of the table of contents while it is being read; a Section once
+--- its heading is found in the body.
+---@class cds.rfc.Row
+---@field indent integer     -- the row's indent, which tells its level
+---@field number string
+---@field label string
+---@field title string
+---@field toc_line integer?  -- the row's line, set once the row is kept
+---@field heading string?    -- the pattern its heading must start with, likewise
+
 ---@class cds.rfc.Mention
 ---@field kind "rfc"|"section"|"citation"
 ---@field first integer     -- byte range of the text a link would replace
@@ -97,7 +107,7 @@ local ROWS = {
 
 --- A numbered row, by the first shape that fits.
 ---@param line string
----@return { indent: integer, number: string, label: string, title: string }|nil
+---@return cds.rfc.Row|nil
 local function parse_numbered_row(line)
   return fp.find_map(ROWS, function(row)
     local indent, label, rest = line:match(row.pattern)
@@ -112,7 +122,7 @@ end
 --- starting with a capital. Anything deeper is a wrapped title's second line.
 ---@param line string
 ---@param top_indent integer|nil   -- the indent of the ToC's top-level rows, once known
----@return { indent: integer, number: string, label: string, title: string }|nil
+---@return cds.rfc.Row|nil
 local function parse_unnumbered_row(line, top_indent)
   if not top_indent then
     return nil
@@ -126,7 +136,7 @@ end
 
 ---@param line string
 ---@param top_indent integer|nil
----@return { indent: integer, number: string, label: string, title: string }|nil
+---@return cds.rfc.Row|nil
 local function parse_row(line, top_indent)
   return parse_numbered_row(line) or parse_unnumbered_row(line, top_indent)
 end
@@ -134,7 +144,7 @@ end
 -- The pattern a heading line must start with, after trimming: the number with or
 -- without its dot ("1.1  Purpose" and "1.1.  Purpose" both occur), then
 -- separators; an unnumbered part is its title.
----@param section cds.rfc.Section
+---@param section cds.rfc.Row   -- or a Section: both carry number, label and title
 ---@return string
 local function heading_prefix(section)
   if section.number == "" then

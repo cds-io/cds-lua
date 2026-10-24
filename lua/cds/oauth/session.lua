@@ -121,6 +121,7 @@ function Session:do_refresh()
   local oauth = require("cds.oauth")
   local fresh, err = oauth.refresh(self.client, self.set.refresh_token, self.now())
   if not fresh then
+    assert(err, "a refused refresh carries its error")
     if err.kind == "invalid_grant" then
       self:clear()
       return nil, { kind = "revoked", message = err.message }

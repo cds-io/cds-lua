@@ -98,11 +98,11 @@ local function unescape(s)
       end
       local n = e:match("^#(%d+)$")
       if n then
-        return utf8_char(tonumber(n))
+        return utf8_char(assert(tonumber(n)))
       end
       local hex = e:match("^#[xX](%x+)$")
       if hex then
-        return utf8_char(tonumber(hex, 16))
+        return utf8_char(assert(tonumber(hex, 16)))
       end
       return "&" .. e .. ";"
     end)
@@ -139,7 +139,7 @@ function M.preamble(lines)
     local opener = lines[i]:match("^%s*<pre>%s*$") and "</pre>" or lines[i]:match("^%s*```%s*$") and "```" or nil
     if opener then
       local last = i + 1
-      while last <= #lines and not lines[last]:match(opener, 1, true) do
+      while last <= #lines and not lines[last]:find(opener, 1, true) do
         last = last + 1
       end
       if lines[i + 1] and lines[i + 1]:match(FIELD) then

@@ -8,6 +8,7 @@ local fp = require("cds.fp")
 
 local plain, classes, find_all = tree.plain, tree.classes, tree.find_all
 
+---@class cds.w3c
 local M = {}
 
 ---@class cds.w3c.Entry
@@ -119,7 +120,7 @@ local DAYS = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
 local function utc_time(t)
   t.isdst = false
   local guess = os.time(t)
-  local back = os.date("!*t", guess)
+  local back = os.date("!*t", guess) --[[@as osdate]]
   back.isdst = false
   return guess + (os.time(t) - os.time(back))
 end

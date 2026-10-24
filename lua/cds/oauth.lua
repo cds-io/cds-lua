@@ -64,14 +64,14 @@ end
 ---@param s string
 ---@return string
 local function sha256(s)
-  return (vim.text.hexdecode(vim.fn.sha256(s)))
+  return (assert(vim.text.hexdecode(vim.fn.sha256(s))))
 end
 
 --- PKCE verifier and S256 challenge; exposed for specs.
 ---@return string verifier
 ---@return string challenge
 function M.pkce()
-  local verifier = b64url(vim.uv.random(32))
+  local verifier = b64url(assert(vim.uv.random(32)))
   return verifier, b64url(sha256(verifier))
 end
 
@@ -90,6 +90,7 @@ end
 ---@return cds.oauth.Error? err
 function M.token_response(res, err, now)
   if not res then
+    assert(err, "a refused request carries its error")
     return nil, { kind = err.kind, message = err.message }
   end
   local body = decode(res.body) or {}
@@ -146,7 +147,7 @@ local function await_redirect(server)
       if err then
         return cb(nil, err)
       end
-      local sock = vim.uv.new_tcp()
+      local sock = assert(vim.uv.new_tcp())
       server:accept(sock)
       local buf = ""
       sock:read_start(function(rerr, chunk)
@@ -180,14 +181,14 @@ end
 ---@return cds.oauth.TokenSet? set
 ---@return cds.oauth.Error? err
 function M.login(client, opts)
-  local server = vim.uv.new_tcp()
+  local server = assert(vim.uv.new_tcp())
   local ok, bind_err = pcall(server.bind, server, "127.0.0.1", 0)
   if not ok then
     server:close()
     return nil, { kind = "listen", message = tostring(bind_err) }
   end
-  local redirect_uri = ("http://127.0.0.1:%d/"):format(server:getsockname().port)
-  local state = b64url(vim.uv.random(16))
+  local redirect_uri = ("http://127.0.0.1:%d/"):format(assert(server:getsockname()).port)
+  local state = b64url(assert(vim.uv.random(16)))
   local verifier, challenge = M.pkce()
   opts.open(client.auth_url .. "?" .. M.form({
     client_id = client.id,
@@ -263,6 +264,7 @@ function M.revoke(client, token)
     body = M.form({ token = token }),
   })
   if not res then
+    assert(err, "a refused request carries its error")
     return false, err.message
   elseif res.status ~= status.OK then
     return false, ("HTTP %d"):format(res.status)

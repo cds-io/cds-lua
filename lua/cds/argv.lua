@@ -187,10 +187,10 @@ function M.positional(values)
   return setmetatable({ values = vim.list_extend({}, values) }, Positional)
 end
 
---- One input per value, in order. An input may be nil (its value's steps
---- decide what that means); set `inputs.n` when the last one might be, since
---- a Lua list cannot show a trailing nil.
----@param inputs any[]
+--- Renders one input per value, in order. An input may be nil (its value's
+--- steps decide what that means); set `inputs.n` when the last one might be,
+--- since a Lua list cannot show a trailing nil.
+---@param inputs { [integer]: any, n: integer? }
 ---@return string[]? args
 ---@return string? err   -- the first value that failed
 function Positional:render(inputs)
