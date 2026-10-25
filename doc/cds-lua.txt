@@ -223,9 +223,10 @@ Fields ~
 ==============================================================================
                                                                       *cds.http*
 Every option travels as a config file on curl's stdin (`--config -`),
-so a bearer token or client secret never appears in argv or in `ps`. An
-HTTP response of any status returns normally; only a transport failure
-returns nil plus a classified error.
+so a bearer token or client secret never appears in argv or in `ps`.
+Transfers are compressed when the server offers it, and the body comes
+back decoded. An HTTP response of any status returns normally; only a
+transport failure returns nil plus a classified error.
 
 ------------------------------------------------------------------------------
 Class ~
