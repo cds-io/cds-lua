@@ -1,17 +1,16 @@
--- The one module that names vim.async. It is new in Neovim 0.13 and may still
--- change before that release; every caller goes through here, so a rename
--- is a one-file fix.
---
--- The types are declared here too, as the four functions the family calls.
--- vim.async's own annotations are written over variadic generics (`R...`),
--- which the language server (3.19) cannot follow: every `return nil, err`
--- inside a run and every two-value await came back as a type error. The
--- declaration below says what our callers rely on, a step that answers a
--- value and an error, and nothing about how many values a task carries.
+---@tag cds.async
+---@toc_entry vim.async, named once
+---@text
+--- The one module that names vim.async. It is new in Neovim 0.13 and may
+--- still change before that release; every caller goes through here, so a
+--- rename is a one-file fix. The module is vim.async itself, under a type
+--- declared here as the four functions the family calls, each a step in the
+--- Result convention: a value, or nil and its error. vim.async's own
+--- annotations are variadic generics the language server cannot follow.
+
 assert(vim.async, "requires Neovim 0.13+ (vim.async)")
 
---- A step in the Result convention: a value, or nil and its error.
----@alias cds.async.Step fun(...: any): any, any
+---@alias cds.async.Step fun(...: any): any, any  -- a value, or nil and its error
 
 ---@class cds.async
 ---@field run fun(fn: cds.async.Step, ...: any): vim.async.Task       -- starts the step as a task

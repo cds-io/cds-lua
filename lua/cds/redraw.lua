@@ -1,12 +1,16 @@
--- A buffer drawn again while it is on screen: the draw runs once, and every
--- window showing the buffer is put back on its place, so the layout stays
--- the reader's. The place is a key the caller names (a line, a section's
--- tag, an item's signature) taken before the draw and sought after it; with
--- no key, or when the key is gone, the window keeps its line, clamped to
--- the new length. The two halves are `places` and `restore`, for a draw
--- whose text lands later (a listing filled page by page); `windows` is both
--- around a draw that returns with its text. Dependents of the buffer's text
--- (a sidebar, folds) are the caller's to refresh, with the windows answered.
+---@tag cds.redraw
+---@toc_entry A buffer drawn again in place
+---@text
+--- A buffer drawn again while it is on screen: the draw runs once, and
+--- every window showing the buffer is put back on its place, so the layout
+--- stays the reader's. The place is a key the caller names (a line, a
+--- section's tag, an item's signature) taken before the draw and sought after
+--- it; with no key, or when the key is gone, the window keeps its line,
+--- clamped to the new length. The two halves are `places` and `restore`, for
+--- a draw whose text lands later (a listing filled page by page); `windows` is
+--- both around a draw that returns with its text. Dependents of the buffer's
+--- text (a sidebar, folds) are the caller's to refresh, with the windows
+--- answered.
 ---@class cds.redraw
 local M = {}
 

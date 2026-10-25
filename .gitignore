@@ -1,0 +1,3 @@
+# :helptags output; the plugin manager builds it on install
+doc/tags
+

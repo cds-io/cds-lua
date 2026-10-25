@@ -1,15 +1,57 @@
--- What a plugin needs from this library, checked against the copy present.
--- A plugin declares the names it uses, by module (`{ fp = { "map", "filter"
--- } }`, a function or a table such as `http.status`), and asks at startup
--- whether they are here; the answer is
--- the names that are not, or a sentence for the reader naming them and the
--- remedy. The library grows by addition, so a plugin runs on any commit that
--- has what it declares, and the declaration is the plugin's statement of
--- that. `strict` is for a plugin's specs: the declared modules behind proxies
--- that refuse any other name, so the declaration stays what the code uses.
---
--- The one check a plugin keeps for itself is whether this module loads: a
--- library too old to carry it fails that `require`, which is the answer.
+---@tag cds-lua
+---@text
+--- A common library for Neovim plugins written in a functional style:
+--- `fp` and `result` for the vocabulary, `task` for asynchronous work, and the
+--- modules that grew out of the plugins that use them (processes, HTTP,
+--- documents, redraws). Each module is pure Lua that names no plugin; every
+--- function answers `value` or `nil, err`, and `nil` alone means failure
+--- (|cds.result|).
+---
+--- The library grows by addition: a function keeps its contract under its
+--- name, and a different contract gets a different name, so a plugin can
+--- declare the functions it uses and run on any commit that has them
+--- (|cds.needs|). A name a module does not have fails at the call, in words
+--- (|cds.module|).
+---
+--- This manual covers the modules the plugins call in common. The rest (the
+--- document readers, OAuth, processes, dates) are documented in their source,
+--- which the language server shows on hover, and on the reference site.
+---
+---@toc
+
+---@tag cds.needs
+---@toc_entry Taking the library
+---@text
+--- A plugin takes the library as a lazy.nvim dependency, declared in the
+--- `lazy.lua` at its root: >lua
+---
+---   return {
+---     "cds-io/<plugin>",
+---     dependencies = { { "cds-io/cds-lua", lazy = true } },
+---   }
+--- <
+--- The dependency tracks `main` with no pin, so one `:Lazy update` moves the
+--- family together, and one copy of `lua/cds/` is on the runtimepath, so
+--- `require("cds.fp")` has one file to resolve to.
+---
+--- What the plugin calls is declared in `lua/<plugin>/needs.lua`, by module
+--- and name: a function, or a table such as `http.status`. >lua
+---
+---   ---@type cds.needs.Capabilities
+---   return {
+---     fp = { "map", "filter" },
+---     http = { "request", "status" },
+---   }
+--- <
+--- The plugin's entry runs |cds.needs.check()| first and refuses the whole
+--- plugin, in one message naming the remedy, when the library installed lacks
+--- a name. Its spec harness wraps the declared modules through
+--- |cds.needs.strict()|, so a call the declaration leaves out fails the spec
+--- in words, and the declaration stays what the code uses.
+---
+--- The one check a plugin keeps for itself is whether this module loads: a
+--- library too old to carry it fails that `require`, which is the answer.
+
 local fp = require("cds.fp")
 local module = require("cds.module")
 

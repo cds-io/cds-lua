@@ -1,11 +1,12 @@
--- What a plugin is waiting on: every long call out, for a statusline segment.
--- A run is tracked from its start to its end; the segment names the runs out
--- with how long each has been out, a User autocmd fires on both edges, and a
--- timer redraws the statusline once a second while anything is out, so the
--- seconds move without the statusline plugin polling.
---
--- Ported from crosscut's activity module; the autocmd name and the clock are
--- parameters so the file carries nothing of either plugin.
+---@tag cds.activity
+---@toc_entry What a plugin is waiting on
+---@text
+--- Every long call out, for a statusline segment. A run is tracked from
+--- its start to its end; the segment names the runs out with how long each
+--- has been out, a User autocmd fires on both edges, and a timer redraws the
+--- statusline once a second while anything is out, so the seconds move
+--- without the statusline plugin polling. The autocmd name and the clock are
+--- parameters, so the module carries nothing of any one plugin.
 ---@class cds.activity
 local M = {}
 
@@ -22,6 +23,7 @@ local M = {}
 local Activity = {}
 Activity.__index = Activity
 
+--- Makes a tracker that fires `opts.autocmd` on both edges of every run.
 ---@param opts cds.activity.Options
 ---@return cds.Activity
 function M.new(opts)

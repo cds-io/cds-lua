@@ -1,5 +1,20 @@
--- A lazy asynchronous result over vim.async. Composition passes one value and
--- one error; nil and false are valid successes. Only run starts effects.
+---@tag cds.task
+---@toc_entry Tasks
+---@text
+--- A lazy asynchronous result over vim.async. A Task is a recipe: nothing
+--- runs until |cds.Task:run()|, so a pipeline is built, combined and handed
+--- around as a value. Composition passes one value and one error, in the
+--- Result convention; nil and false are valid successes. >lua
+---
+---   local Task = require("cds.task")
+---   Task.new(function()
+---     return http.request({ method = "GET", url = url })
+---   end)
+---     :bind_result(parse)
+---     :map_err(function(err) return "the index: " .. err.message end)
+---     :run()
+--- <
+
 local async = require("cds.async")
 ---@class cds.Task
 ---@field package evaluate fun(): any, any   -- read by the combinators, in this file only
@@ -13,6 +28,7 @@ function Task.new(fn)
   return setmetatable({ evaluate = fn }, Task)
 end
 
+--- Makes a Task that answers `value`.
 ---@param value any
 ---@return cds.Task
 function Task.of(value)
@@ -21,6 +37,7 @@ function Task.of(value)
   end)
 end
 
+--- Makes a Task that fails with `err`, which must not be nil.
 ---@param err any
 ---@return cds.Task
 function Task.fail(err)
@@ -42,6 +59,8 @@ function Task.of_result(value, err)
   return Task.of(value)
 end
 
+--- Passes the value through `fn`, which answers the Task to go on with; an
+--- error passes through untouched.
 ---@param fn fun(value: any): cds.Task
 ---@return cds.Task
 function Task:bind(fn)
@@ -64,6 +83,8 @@ function Task:bind_result(fn)
   end)
 end
 
+--- Passes the value through `fn`, which always answers; an error passes through
+--- untouched.
 ---@param fn fun(value: any): any
 ---@return cds.Task
 function Task:map(fn)
@@ -115,8 +136,10 @@ function Task:map_err(fn)
   end)
 end
 
--- Recovery also catches exceptions, inside the child rather than its awaiter:
--- an uncaught vim.async child failure can cancel its siblings.
+--- Passes the error through `fn`, which answers the Task to go on with; a value
+--- passes through untouched. Recovery also catches exceptions, inside the child
+--- rather than its awaiter: an uncaught vim.async child failure can cancel its
+--- siblings.
 ---@param fn fun(err: any): cds.Task
 ---@return cds.Task
 function Task:recover(fn)
@@ -144,7 +167,8 @@ function Task:on_main()
   end)
 end
 
---- Evaluate while holding an existing semaphore, shared across the batch.
+--- Evaluates while holding an existing semaphore, shared across the batch.
+---@param semaphore vim.async.Semaphore
 ---@return cds.Task
 function Task:limited(semaphore)
   return Task.new(function()

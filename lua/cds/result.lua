@@ -1,8 +1,13 @@
--- Lua's value, error convention as a small Result pipeline. Only nil fails:
--- false and zero are valid successful values. A step that can refuse goes
--- through bind or traverse; one that cannot goes through map, so a reader
--- can tell the two apart at the call. Where a step cannot fail and there is
--- no error to carry, fp.map is the plain list map.
+---@tag cds.result
+---@toc_entry The Result convention
+---@text
+--- Lua's value, error convention as a small pipeline. A function answers
+--- `value`, or `nil, err`; only nil fails, so false and zero are valid
+--- successful values. A step that can refuse goes through `bind` or
+--- `traverse`; one that cannot goes through `map`, so a reader can tell the
+--- two apart at the call. Where a step cannot fail and there is no error to
+--- carry, |cds.fp.map()| is the plain list map. Errors are values until the
+--- dispatch rim turns the last one into a message for the reader.
 ---@class cds.result
 local M = {}
 

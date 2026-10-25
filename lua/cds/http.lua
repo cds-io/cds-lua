@@ -1,7 +1,11 @@
--- HTTP through curl. Every option travels as a config file on stdin
--- (`--config -`), so a bearer token or client secret never appears in argv or
--- in `ps`. An HTTP response of any status returns normally; only a transport
--- failure returns nil plus a classified error.
+---@tag cds.http
+---@toc_entry HTTP through curl
+---@text
+--- Every option travels as a config file on curl's stdin (`--config -`),
+--- so a bearer token or client secret never appears in argv or in `ps`. An
+--- HTTP response of any status returns normally; only a transport failure
+--- returns nil plus a classified error.
+
 local proc = require("cds.proc")
 
 ---@class cds.http
@@ -23,9 +27,9 @@ local M = {}
 ---@field kind "unreachable"|"timeout"|"interrupted"|"tls"|"curl"|"spawn"
 ---@field message string
 
--- The statuses a caller branches on, by name, and the one class that
--- matters as a class: a 5xx is the server's trouble, worth trying later.
--- Success is OK alone, since a 201 or a 204 carries no body to read.
+--- Names the statuses a caller branches on, and the one class that matters as a
+--- class: a 5xx is the server's trouble, worth trying later. Success is OK
+--- alone, since a 201 or a 204 carries no body to read.
 M.status = {
   OK = 200,
   NOT_MODIFIED = 304,
@@ -34,6 +38,7 @@ M.status = {
   CONFLICT = 409,
 }
 
+--- Whether a status is the server's trouble (a 5xx), worth trying later.
 ---@param code integer
 ---@return boolean
 function M.status.transient(code)
@@ -150,6 +155,8 @@ local function perform(req)
   return res
 end
 
+--- Performs the request and answers the response, of any status, or nil and a
+--- classified transport error; `trace` is told either way.
 ---@param req cds.http.Request
 ---@return cds.http.Response? response
 ---@return cds.http.Error? err

@@ -45,3 +45,22 @@ jobs:
       - uses: lunarmodules/luacheck@v1
         with:
           args: lua spec
+
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: cds-lua
+      # mini.doc beside the library, where the Makefile looks first
+      - uses: actions/checkout@v7
+        with:
+          repository: nvim-mini/mini.doc
+          path: mini.doc
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: nightly
+      - name: Help file is current
+        run: make doc-check
+        working-directory: cds-lua
