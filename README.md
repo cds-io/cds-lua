@@ -28,6 +28,9 @@ another manager, put both libraries on the runtimepath. Check the APIs your
 plugin uses at startup with `cds.needs`; `:help cds-lua` shows the full check.
 It checks availability, not signatures or behavior, and complements your tests.
 
+> Need to switch between Neovim versions? [Bob](https://github.com/mordechaihadad/bob)
+> installs and switches between stable and nightly builds. Bob’s your uncle!
+
 ## Start with a small pipeline
 
 This example needs no network. A real producer can await a process or HTTP

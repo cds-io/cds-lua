@@ -56,15 +56,18 @@ Task:bind_result adapt the Result convention, so they require a non-nil
 success value. Procedures such as redraw.restore return no result.
 
 Start with the complete example under |cds.task|, then use the module
-recipes below. This manual covers task, async, HTTP, redraw, and activity.
+recipes below. This manual covers task, async, HTTP, redraw, activity,
+datetime, and images.
 The reference site https://cds-io.github.io/cds-lua/ covers every module,
-including OAuth, secrets, processes, dates, and images.
+including OAuth, secrets, and processes.
 
   Tasks ........................................................... |cds.task|
   Callback and native Task interop ............................... |cds.async|
   HTTP through curl ............................................... |cds.http|
   Preserving selection on refresh ............................... |cds.redraw|
   Tracking running work ....................................... |cds.activity|
+  Calendar arithmetic and formatting .......................... |cds.datetime|
+  Displaying inline images ...................................... |cds.images|
 
                                                                       *cds.task*
 A Task describes asynchronous work without starting it. Build a pipeline
@@ -690,6 +693,299 @@ Return ~
                                                           *cds.Activity:reset()*
                                `Activity:reset`()
 Forgets every run; for the specs.
+
+
+==============================================================================
+                                                                  *cds.datetime*
+Does calendar arithmetic on local date/time values and formats them using
+patterns such as `yyyy-MM-dd` and `HH:mm`. A value is a table with year,
+month, day, and optional hour and min fields. These fields describe a
+calendar date and time, without a time zone or UTC offset. The module does
+not read the current clock or convert between named time zones.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.DateTime}
+Fields ~
+{year} `(integer)`
+{month} `(integer)`
+{day} `(integer)`
+{hour} `(integer?)`
+{min} `(integer?)`
+
+------------------------------------------------------------------------------
+                                                  *cds.datetime.days_in_month()*
+                       `datetime.days_in_month`({y}, {m})
+Parameters ~
+{y} `(integer)`
+{m} `(integer)`
+Return ~
+`(integer)`
+
+------------------------------------------------------------------------------
+                                                       *cds.datetime.is_valid()*
+                       `datetime.is_valid`({y}, {m}, {d})
+Parameters ~
+{y} `(any)`
+{m} `(any)`
+{d} `(any)`
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                        *cds.datetime.to_time()*
+                            `datetime.to_time`({dt})
+Converts `dt`'s date to seconds since the epoch at noon, local time.
+Parameters ~
+{dt} `(cds.DateTime)`
+Return ~
+`(integer)`
+
+------------------------------------------------------------------------------
+                                                      *cds.datetime.from_time()*
+                           `datetime.from_time`({t})
+Reads the date of `t` in local time; the time of day is dropped.
+Parameters ~
+{t} `(integer)`
+Return ~
+`(cds.DateTime)`
+
+------------------------------------------------------------------------------
+                                                       *cds.datetime.add_days()*
+                         `datetime.add_days`({dt}, {n})
+Parameters ~
+{dt} `(cds.DateTime)`
+{n} `(integer)`
+Return ~
+`(cds.DateTime)` same hour and min as `dt`
+
+------------------------------------------------------------------------------
+                                                        *cds.datetime.weekday()*
+                            `datetime.weekday`({dt})
+Answers the ISO weekday: 1 is Monday, 7 is Sunday.
+Parameters ~
+{dt} `(cds.DateTime)`
+Return ~
+`(integer)`
+
+------------------------------------------------------------------------------
+                                                  *cds.datetime.start_of_week()*
+                  `datetime.start_of_week`({dt}, {first_day})
+Finds the first day of the week `dt` is in.
+Parameters ~
+{dt} `(cds.DateTime)`
+{first_day} `("monday"|"sunday")`
+Return ~
+`(cds.DateTime)` date only
+
+------------------------------------------------------------------------------
+                                                   *cds.datetime.next_weekday()*
+                      `datetime.next_weekday`({dt}, {wd})
+Finds the next date strictly after `dt` that falls on `wd`.
+Parameters ~
+{dt} `(cds.DateTime)`
+{wd} `(integer)` ISO weekday
+Return ~
+`(cds.DateTime)` date only
+
+------------------------------------------------------------------------------
+                                                    *cds.datetime.add_minutes()*
+                    `datetime.add_minutes`({dt}, {minutes})
+Adds minutes, crossing midnight through add_days.
+Parameters ~
+{dt} `(cds.DateTime)`
+{minutes} `(integer)`
+Return ~
+`(cds.DateTime)`
+
+------------------------------------------------------------------------------
+                                                      *cds.datetime.date_only()*
+                           `datetime.date_only`({dt})
+Parameters ~
+{dt} `(cds.DateTime)`
+Return ~
+`(cds.DateTime)`
+
+------------------------------------------------------------------------------
+                                                      *cds.datetime.with_time()*
+                   `datetime.with_time`({dt}, {hour}, {min})
+Parameters ~
+{dt} `(cds.DateTime)`
+{hour} `(integer)`
+{min} `(integer)`
+Return ~
+`(cds.DateTime)`
+
+------------------------------------------------------------------------------
+                                                        *cds.datetime.compare()*
+                          `datetime.compare`({a}, {b})
+Orders two values; a missing time counts as midnight.
+Parameters ~
+{a} `(cds.DateTime)`
+{b} `(cds.DateTime)`
+Return ~
+`(integer)` -1, 0 or 1
+
+------------------------------------------------------------------------------
+Class ~
+{cds.datetime.Format}
+Fields ~
+{parts} `(table[])` { token = <name> } or { literal = <text> }
+{pattern} `(string)` a Lua pattern matching the whole text
+
+------------------------------------------------------------------------------
+                                                        *cds.datetime.compile()*
+                          `datetime.compile`({format})
+Checks a format once. An unknown token is the error, so a typo in
+configuration fails at setup, never at parse time.
+Parameters ~
+{format} `(string)`
+Return ~
+`(cds.datetime.Format?)` compiled
+`(string?)` err
+
+------------------------------------------------------------------------------
+                                                         *cds.datetime.format()*
+                       `datetime.format`({dt}, {format})
+Parameters ~
+{dt} `(cds.DateTime)`
+{format} `(string|cds.datetime.Format)`
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                          *cds.datetime.parse()*
+                       `datetime.parse`({text}, {format})
+Reads `text` as `format`, whole. The result holds only the fields the
+format names; a date's validity is the caller's check (is_valid).
+Parameters ~
+{text} `(string)`
+{format} `(string|cds.datetime.Format)`
+Return ~
+`(cds.DateTime?)` dt
+
+
+==============================================================================
+                                                                    *cds.images*
+Displays images below buffer lines through an optional image plugin.
+Call place with a buffer, window, row, image URL or file path, and maximum
+height. It returns a placement that you can remove with clear; clear_all
+removes all placements in a buffer.
+
+The supported backend is image.nvim. It must be installed and enabled;
+this module handles its rendering calls and asynchronous image loading.
+Use available() to check whether images can be displayed. Without an
+available backend, place returns nil and draws nothing, so callers should
+keep captions or alternative text readable without images.
+
+Display a placeholder image ~
+Run this in Neovim with image.nvim installed, configured, and enabled in
+a terminal it supports. The placeholder service returns an image directly;
+no JSON API request is needed. Its URL syntax is documented at
+https://tools.placeholder.com/images (part of the Placeholder tools).
+The remote image requires network access; a local file path works too.
+>lua
+  local images = require("cds.images")
+  local buf = vim.api.nvim_create_buf(false, true)
+  local win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(win, buf)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    "Example: a 600 by 400 placeholder image",
+    "Close this buffer to remove its image.",
+  })
+
+  -- Register cleanup before starting the asynchronous download.
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    buffer = buf,
+    once = true,
+    callback = function() images.clear_all(buf) end,
+  })
+  if images.available() then
+    local placement, err = images.place({
+      buf = buf,
+      win = win,
+      row = 1,
+      url = "https://via.placeholder.com/600x400.png?text=Example+image",
+      max_height = 10,
+    })
+    if not placement and err then
+      vim.notify(tostring(err), vim.log.levels.WARN)
+    end
+  end
+<
+The caption remains readable without a backend. row is 1-based and places
+the image below that buffer line; max_height is measured in terminal rows.
+For a remote URL, a placement means loading has started, not that the image
+is already visible. To remove it earlier, pass it to images.clear().
+Clearing before the download finishes also prevents rendering on arrival.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.images.Spec}
+Fields ~
+{buf} `(integer)`
+{win} `(integer)`
+{row} `(integer)` 1-based; the image goes below this line
+{url} `(string)` an http(s) URL or a file path
+{max_height} `(integer)` rows
+
+------------------------------------------------------------------------------
+Class ~
+{cds.images.Placement}
+Fields ~
+{buf} `(integer)`
+{backend} `(table)`
+{image} `(any|nil)` the backend's object once it exists
+{cleared} `(boolean|nil)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.images.Backend}
+Fields ~
+{name} `(string)`
+{available} `(fun(): boolean)`
+{place} `(fun(spec: cds.images.Spec, placement: cds.images.Placement): cds.images.Placement|nil, string|nil)`
+{clear} `(fun(placement: cds.images.Placement))`
+
+------------------------------------------------------------------------------
+                                                             *cds.images._use()*
+                            `images._use`({backend})
+For specs: uses this backend (a table), none (false), or the usual (nil),
+forgetting the placements made so far, since they were another backend's.
+Parameters ~
+{backend} `(table|false|nil)`
+
+------------------------------------------------------------------------------
+                                                        *cds.images.available()*
+                              `images.available`()
+Whether a backend is loaded and can draw here.
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                            *cds.images.place()*
+                             `images.place`({spec})
+Draws the image at `spec.url` inline below `spec.row`; the placement,
+or nil and the reason when the backend refuses; nil without a backend.
+Parameters ~
+{spec} `(cds.images.Spec)`
+Return ~
+`(cds.images.Placement|nil)`
+`(string|nil)` err
+
+------------------------------------------------------------------------------
+                                                            *cds.images.clear()*
+                          `images.clear`({placement})
+Removes one placement, once.
+Parameters ~
+{placement} `(cds.images.Placement|nil)`
+
+------------------------------------------------------------------------------
+                                                        *cds.images.clear_all()*
+                           `images.clear_all`({buf})
+Removes every placement made in the buffer.
+Parameters ~
+{buf} `(integer)`
 
 
  vim:tw=78:ts=8:noet:ft=help:norl:

@@ -1,9 +1,57 @@
--- The one module that names an image plugin, as cds.async is the one that
--- names vim.async: a view asks for a picture below a buffer row and gets a
--- placement back, and which plugin draws it is this file's business. The
--- first backend is image.nvim; another is another table below, chosen by
--- which plugin loads. With no backend, available() is false and every
--- other call is a no-op, so a document reads as rendered.
+---@tag cds.images
+---@toc_entry Displaying inline images
+---@text
+--- Displays images below buffer lines through an optional image plugin.
+--- Call place with a buffer, window, row, image URL or file path, and maximum
+--- height. It returns a placement that you can remove with clear; clear_all
+--- removes all placements in a buffer.
+---
+--- The supported backend is image.nvim. It must be installed and enabled;
+--- this module handles its rendering calls and asynchronous image loading.
+--- Use available() to check whether images can be displayed. Without an
+--- available backend, place returns nil and draws nothing, so callers should
+--- keep captions or alternative text readable without images.
+---
+--- Display a placeholder image ~
+--- Run this in Neovim with image.nvim installed, configured, and enabled in
+--- a terminal it supports. The placeholder service returns an image directly;
+--- no JSON API request is needed. Its URL syntax is documented at
+--- https://tools.placeholder.com/images (part of the Placeholder tools).
+--- The remote image requires network access; a local file path works too.
+--- >lua
+---   local images = require("cds.images")
+---   local buf = vim.api.nvim_create_buf(false, true)
+---   local win = vim.api.nvim_get_current_win()
+---   vim.api.nvim_win_set_buf(win, buf)
+---   vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+---     "Example: a 600 by 400 placeholder image",
+---     "Close this buffer to remove its image.",
+---   })
+---
+---   -- Register cleanup before starting the asynchronous download.
+---   vim.api.nvim_create_autocmd("BufWipeout", {
+---     buffer = buf,
+---     once = true,
+---     callback = function() images.clear_all(buf) end,
+---   })
+---   if images.available() then
+---     local placement, err = images.place({
+---       buf = buf,
+---       win = win,
+---       row = 1,
+---       url = "https://via.placeholder.com/600x400.png?text=Example+image",
+---       max_height = 10,
+---     })
+---     if not placement and err then
+---       vim.notify(tostring(err), vim.log.levels.WARN)
+---     end
+---   end
+--- <
+--- The caption remains readable without a backend. row is 1-based and places
+--- the image below that buffer line; max_height is measured in terminal rows.
+--- For a remote URL, a placement means loading has started, not that the image
+--- is already visible. To remove it earlier, pass it to images.clear().
+--- Clearing before the download finishes also prevents rendering on arrival.
 ---@class cds.images
 local M = {}
 

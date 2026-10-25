@@ -57,9 +57,10 @@
 --- success value. Procedures such as redraw.restore return no result.
 ---
 --- Start with the complete example under |cds.task|, then use the module
---- recipes below. This manual covers task, async, HTTP, redraw, and activity.
+--- recipes below. This manual covers task, async, HTTP, redraw, activity,
+--- datetime, and images.
 --- The reference site https://cds-io.github.io/cds-lua/ covers every module,
---- including OAuth, secrets, processes, dates, and images.
+--- including OAuth, secrets, and processes.
 ---
 ---@toc
 
