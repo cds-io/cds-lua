@@ -31,3 +31,7 @@ make check     # the specs, inside Neovim; stylua; luacheck; the type check; the
 make doc       # doc/cds-lua.txt
 make site      # site/modules/*.md, the reference site's pages
 ```
+
+## Licence
+
+MIT; see LICENSE.
