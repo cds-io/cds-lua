@@ -6,48 +6,65 @@ permalink: /
 
 # cds-lua
 
-A common library for Neovim plugins written in a functional style: `task` for
-asynchronous work, and the modules that grew out of the plugins that use them
-(processes, HTTP, OAuth, redraws). The vocabulary they are written in,
-`cds.fp` for lists and `cds.result` for the Result convention, and the
-`cds.needs` check a plugin runs at startup, are the
-[cds-lua-fp](https://github.com/cds-io/cds-lua-fp) rock, which this library
-depends on. Each module is pure Lua that names no plugin; every function
-answers `value` or `nil, err`, and `nil` alone means failure.
+Build Neovim plugins that fetch data, handle failures, and refresh buffers
+without repeating asynchronous plumbing. `task` composes requests, parsing,
+and recovery before starting work; `http` separates transport failures from
+HTTP responses; `redraw` preserves the selected item when a listing changes;
+`activity` shows running operations in a statusline.
 
-The library grows by addition: a function keeps its contract under its name,
-and a different contract gets a different name, so a plugin can declare the
-functions it uses and run on any commit that has them. A name a module does not
-have fails at the call, in words, naming the module and the key.
+Use only the modules you need. The list and Result helpers, and the startup
+API check, live in [cds-lua-fp](https://github.com/cds-io/cds-lua-fp).
 
-## Taking the library
+## Setup
 
-A plugin takes it as a lazy.nvim dependency, declared in the `lazy.lua` at its
-root, tracking `main`:
+The asynchronous modules require Neovim 0.13+ with `vim.async` available.
+HTTP requires `curl` on PATH. With lazy.nvim, declare the vocabulary dependency
+explicitly:
 
 ```lua
 return {
-  "cds-io/<plugin>",
-  dependencies = { { "cds-io/cds-lua", lazy = true } },
+  "cds-io/cds-lua",
+  lazy = true,
+  dependencies = { { "cds-io/cds-lua-fp", lazy = true } },
 }
 ```
 
-What the plugin calls is declared in `lua/<plugin>/needs.lua`, by module and
-name, and checked at startup by `cds.needs`, from the rock:
+If you distribute a plugin, include this spec in its `dependencies`. With
+another manager, put both libraries on the runtimepath. Check the APIs your
+plugin uses at startup with `cds.needs`; the manual (`:help cds-lua`) shows the full check.
+It checks availability, not signatures or behavior, and complements your tests.
+
+## Start with a small pipeline
+
+This example needs no network. A real producer can await a process or HTTP
+request; the validation and transformation steps stay the same.
 
 ```lua
----@type cds.needs.Capabilities
-return {
-  fp = { "map", "filter" },
-  http = { "request", "status" },
-}
+local Task = require("cds.task")
+local value, err = Task.of(3)
+  :ensure(function(n) return n > 0 end, "expected a positive number")
+  :map(function(n) return "count: " .. n end)
+  :run():wait(1000)
+assert(value == "count: 3" and err == nil)
 ```
 
-## Reading on
+Tasks are lazy: `run()` starts a fresh execution and returns a native handle.
+`wait()` is for synchronous scripts and tests. In a plugin, observe completion
+with `on_complete`, or await the handle inside asynchronous code. The manual
+has a complete HTTP → validation → JSON → buffer example, including errors
+and scheduling editor updates.
 
-- [Modules](modules/): one page per module, from the annotations in the source.
-- `:help cds-lua` inside Neovim: the manual, covering the modules the plugins
-  call in common; `:help cds-lua-fp` covers the vocabulary.
-- The source: [github.com/cds-io/cds-lua](https://github.com/cds-io/cds-lua).
-  `make check` runs the specs inside Neovim, stylua, luacheck, the language
-  server's type check and the help file's freshness.
+Result functions return a value or `nil, err`; `false` is a valid value.
+Tasks test the error slot instead, so `nil` can also be a successful Task
+value. `bind_result` adapts Result functions and requires a non-nil success.
+
+## Where to go next
+
+- [Modules](modules/): the complete reference, with examples from the source
+  annotations. Start with task for the fetch-and-display workflow, redraw for
+  preserving selection, and activity for a statusline integration.
+- `:help cds-lua` in Neovim: the tutorial, startup check, and common APIs.
+- `:help cds-lua-fp`: the pure Lua vocabulary and capability checks.
+- [Source](https://github.com/cds-io/cds-lua): `make check` verifies specs,
+  formatting, lint, types, and help freshness. Edit the source annotations,
+  then run `make doc` for help or `make site` for the reference pages.

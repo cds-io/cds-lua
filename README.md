@@ -1,35 +1,74 @@
 # cds-lua
 
-A common library for building Neovim plugins in a functional style: `task`
-for asynchronous work, and the modules that grew out of the plugins that use
-them (processes, HTTP, OAuth, redraws). The vocabulary they are written in,
-`fp` and `result`, and the `needs` check a plugin runs at startup, are the
-[cds-lua-fp](https://github.com/cds-io/cds-lua-fp) rock, which this library
-depends on. It grows as the plugins do.
+Build Neovim plugins that fetch data, handle failures, and refresh buffers
+without repeating asynchronous plumbing. `task` composes requests, parsing,
+and recovery before starting work; `http` separates transport failures from
+HTTP responses; `redraw` preserves the selected item when a listing changes;
+`activity` shows running operations in a statusline.
 
-Keep it simple: each module is pure Lua that names no plugin, every
-function answers `value` or `nil, err`, and `nil` alone means failure. The
-library grows by addition: a function keeps its contract under its name, and
-a different contract gets a different name, so a plugin can check for the
-functions it uses and run on any commit that has them. A name a module does
-not have fails at the call, in words, naming the module and the key.
+Use only the modules you need. The list and Result helpers, and the startup
+API check, live in [cds-lua-fp](https://github.com/cds-io/cds-lua-fp).
 
-This is a learning journey, written in the open. Expect the shape to change.
+## Setup
 
-`:help cds-lua` is the manual: how a plugin takes the library and the modules
-the plugins call in common (`task`, `async`, `http`, `redraw`, `activity`);
-`:help cds-lua-fp` covers the vocabulary. It
-is generated from the annotation blocks in the source by
-[mini.doc](https://github.com/nvim-mini/mini.doc) (`make doc`), and `make
-check` refuses a stale copy. The reference site,
-[cds-io.github.io/cds-lua](https://cds-io.github.io/cds-lua/), has one page
-per module, every module, from the same annotations through the language
-server (`make site`), published on each push to main.
+The asynchronous modules require Neovim 0.13+ with `vim.async` available.
+HTTP requires `curl` on PATH. With lazy.nvim, declare the vocabulary dependency
+explicitly:
+
+```lua
+return {
+  "cds-io/cds-lua",
+  lazy = true,
+  dependencies = { { "cds-io/cds-lua-fp", lazy = true } },
+}
+```
+
+If you distribute a plugin, include this spec in its `dependencies`. With
+another manager, put both libraries on the runtimepath. Check the APIs your
+plugin uses at startup with `cds.needs`; `:help cds-lua` shows the full check.
+It checks availability, not signatures or behavior, and complements your tests.
+
+## Start with a small pipeline
+
+This example needs no network. A real producer can await a process or HTTP
+request; the validation and transformation steps stay the same.
+
+```lua
+local Task = require("cds.task")
+local value, err = Task.of(3)
+  :ensure(function(n) return n > 0 end, "expected a positive number")
+  :map(function(n) return "count: " .. n end)
+  :run():wait(1000)
+assert(value == "count: 3" and err == nil)
+```
+
+Tasks are lazy: `run()` starts a fresh execution and returns a native handle.
+`wait()` is for synchronous scripts and tests. In a plugin, observe completion
+with `on_complete`, or await the handle inside asynchronous code. The manual
+has a complete HTTP → validation → JSON → buffer example, including errors
+and scheduling editor updates.
+
+Result functions return a value or `nil, err`; `false` is a valid value.
+Tasks test the error slot instead, so `nil` can also be a successful Task
+value. `bind_result` adapts Result functions and requires a non-nil success.
+
+## Documentation and development
+
+- `:help cds-lua`: setup, complete examples, recipes, and the common APIs.
+- `:help cds-lua-fp`: list helpers, Result composition, and capability checks.
+- [Reference site](https://cds-io.github.io/cds-lua/): every module, generated
+  from source annotations through the language server.
+
+Help prose and examples live in source annotation blocks. `mini.doc` generates
+the help file; edit the annotations and regenerate it with `make doc`.
+The library grows by addition: functions keep their contracts under their
+names, and different contracts get different names. This is a learning
+project, written in the open.
 
 ```
-make check     # the specs, inside Neovim; stylua; luacheck; the type check; the help file
-make doc       # doc/cds-lua.txt
-make site      # site/modules/*.md, the reference site's pages
+make check     # specs, formatting, lint, type check, and help freshness
+make doc       # regenerate doc/cds-lua.txt
+make site      # generate site/modules/*.md from annotations
 ```
 
 ## Licence

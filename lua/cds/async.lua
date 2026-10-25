@@ -1,12 +1,27 @@
 ---@tag cds.async
----@toc_entry vim.async, named once
+---@toc_entry Callback and native Task interop
 ---@text
---- The one module that names vim.async. It is new in Neovim 0.13 and may
---- still change before that release; every caller goes through here, so a
---- rename is a one-file fix. The module is vim.async itself, under a type
---- declared here as the four functions the family calls, each a step in the
---- Result convention: a value, or nil and its error. vim.async's own
---- annotations are variadic generics the language server cannot follow.
+--- Use Task for composable workflows; use cds.async when adapting a callback
+--- API, awaiting a native handle, or sharing a semaphore. This module exports
+--- vim.async directly with narrower types for the functions used by cds-lua.
+--- Keeping the dependency here limits the changes needed as vim.async evolves.
+--- It requires Neovim 0.13+ with vim.async available.
+---
+--- For example, suspend a task until a scheduled callback completes: >lua
+---
+---   local async = require("cds.async")
+---   local run = async.run(function()
+---     async.await(1, function(done) vim.defer_fn(done, 10) end)
+---     return "ready"
+---   end)
+---   assert(run:wait(1000) == "ready")
+--- <
+--- In the callback form of await, the first argument is the position where
+--- await inserts its completion callback into the function's arguments. In
+--- this example it is the function's only argument. To await a native Task,
+--- pass the handle directly: async.await(run), from inside another task.
+--- Native async functions preserve their own return conventions; the
+--- value-or-error convention belongs to the functions you run through them.
 
 assert(vim.async, "requires Neovim 0.13+ (vim.async)")
 

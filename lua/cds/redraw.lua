@@ -1,17 +1,58 @@
 ---@tag cds.redraw
----@toc_entry A buffer drawn again in place
+---@toc_entry Preserving selection on refresh
 ---@text
---- Redraws a buffer while it is on screen and keeps the reader's place. The
---- draw runs once, and every window showing the buffer is put back where it
---- was, so the layout stays the reader's. The place is a key the caller
---- names (a line, a section's tag, an item's signature), taken before the
---- draw and sought after it; with no key, or when the key is gone, the
---- window keeps its line, clamped to the new length. `places` and `restore`
---- are the two halves, for a draw whose text lands later (a listing filled
---- page by page); `windows` wraps both around a draw that returns with its
---- text. Dependents of the buffer's text (a sidebar, folds) are the caller's
---- to refresh, with the windows answered.
+--- Refreshing a listing can move the item under the cursor. Save its stable
+--- identity before replacing the lines, then find that identity in the new
+--- listing. redraw does this for every window showing the buffer, so splits
+--- can preserve different selections. If an item disappears, it restores the
+--- old cursor position with the line clamped to the new buffer length.
+---
+--- Keep the selected item after sorting ~
+--- This complete example opens a scratch listing with "Beta" selected, then
+--- sorts it. The cursor follows Beta from line 1 to line 2: >lua
+---
+---   local redraw = require("cds.redraw")
+---   local buf = vim.api.nvim_create_buf(false, true)
+---   vim.api.nvim_set_current_buf(buf)
+---   local items = { { id = "b", label = "Beta" }, { id = "a", label = "Alpha" } }
+---   local function draw()
+---     local lines = {}
+---     for i, item in ipairs(items) do lines[i] = item.label end
+---     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+---   end
+---   draw()
+---   vim.api.nvim_win_set_cursor(0, { 1, 0 })
+---   local keep = {
+---     key = function(win)
+---       local item = items[vim.api.nvim_win_get_cursor(win)[1]]
+---       return item and item.id
+---     end,
+---     seek = function(win, id)
+---       for row, item in ipairs(items) do
+---         if item.id == id then
+---           vim.api.nvim_win_set_cursor(win, { row, 0 })
+---           return true
+---         end
+---       end
+---       return false
+---     end,
+---   }
+---   redraw.windows(buf, function()
+---     table.sort(items, function(a, b) return a.label < b.label end)
+---     draw()
+---   end, keep)
+---   assert(vim.api.nvim_win_get_cursor(0)[1] == 2)
+--- <
+--- Change items inside the draw callback: key must still see the old listing
+--- when windows captures the selection. seek moves the cursor itself and
+--- returns true when it finds the key. Omit keep to preserve line positions.
+---
+--- For text that arrives later, call places(buf, keep) before changing the
+--- model, then restore(saved, keep) once the new text is present. windows wraps
+--- those two calls around a synchronous draw. It returns the affected windows
+--- so the caller can refresh related folds or sidebars.
 ---@class cds.redraw
+
 local M = {}
 
 ---@class cds.redraw.Keep
@@ -45,10 +86,9 @@ function M.places(buf, keep)
   return { buf = buf, wins = wins, of = of }
 end
 
---- Puts each window back on its place after the draw: where `keep` finds the
---- key it named, or on its line clamped to the new length. A window gone
---- meanwhile is passed over. Whenever after: at once, or when the text the
---- place is in has landed.
+--- Restores each window after the new text is available. Uses keep.seek to
+--- find its saved key, or restores the old cursor with its line clamped to
+--- the buffer length. Skips windows that closed or switched buffers.
 ---@param places cds.redraw.Places
 ---@param keep? cds.redraw.Keep
 function M.restore(places, keep)
@@ -63,10 +103,9 @@ function M.restore(places, keep)
   end
 end
 
---- Runs `draw` with the windows showing `buf`, then puts each window back:
---- on the place `keep` names when it is still there, on its line otherwise.
---- The two halves as one call, for a draw whose text is there when it
---- returns. Answers the windows, for the caller's own dependents.
+--- Captures cursor positions and keys, calls draw with the windows showing
+--- buf, then restores their selections. draw must update the text before it
+--- returns. Returns the windows for related fold or sidebar updates.
 ---@param buf integer
 ---@param draw fun(wins: integer[])
 ---@param keep? cds.redraw.Keep

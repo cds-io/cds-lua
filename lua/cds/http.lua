@@ -1,11 +1,37 @@
 ---@tag cds.http
 ---@toc_entry HTTP through curl
 ---@text
---- Every option travels as a config file on curl's stdin (`--config -`),
---- so a bearer token or client secret never appears in argv or in `ps`.
---- Transfers are compressed when the server offers it, and the body comes
---- back decoded. An HTTP response of any status returns normally; only a
---- transport failure returns nil plus a classified error.
+--- Fetch a response without blocking Neovim's event loop. Call request
+--- inside a Task or async.run, because the process runner awaits curl.
+--- Transport failures (DNS, TLS, timeout, or spawning curl) return nil, err.
+--- HTTP 404 and 500 are responses: the caller decides which statuses it accepts
+--- before parsing the body. For example: >lua
+---
+---   local Task = require("cds.task")
+---   local http = require("cds.http")
+---   local request = Task.new(function()
+---     return http.request({ method = "GET", url = "https://example.com/" })
+---   end):ensure(function(response) return response.status == http.status.OK end,
+---     function(response) return "HTTP " .. response.status end)
+---
+---   -- Synchronous script/test; a plugin can observe run:on_complete instead.
+---   local response, err = request:run():wait(35000)
+---   if err ~= nil then
+---     local message = type(err) == "table" and err.message or tostring(err)
+---     vim.notify(message, vim.log.levels.ERROR)
+---   else
+---     print(response.body)
+---   end
+--- <
+--- The request timeout is in seconds (30 by default); wait takes milliseconds.
+--- For a JSON GET, accept 200; a write may instead accept 201 or 204. A 201
+--- response may contain a body; 204 has no response content. A 5xx status may
+--- justify retrying, but retrying a write needs application-specific care.
+---
+--- Options travel on curl's stdin via --config -, so credentials in headers
+--- or bodies do not appear in argv. Transfers use compression when offered,
+--- and response.body is decoded. The config and parse helpers below support
+--- the implementation; request is the normal entry point.
 
 local proc = require("cds.proc")
 
@@ -28,9 +54,8 @@ local M = {}
 ---@field kind "unreachable"|"timeout"|"interrupted"|"tls"|"curl"|"spawn"
 ---@field message string
 
---- Names the statuses a caller branches on, and the one class that matters as a
---- class: a 5xx is the server's trouble, worth trying later. Success is OK
---- alone, since a 201 or a 204 carries no body to read.
+--- Named response statuses for common branches; OK is 200. The caller chooses
+--- which statuses count as success for its operation. transient tests for 5xx.
 M.status = {
   OK = 200,
   NOT_MODIFIED = 304,
