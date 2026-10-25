@@ -1,12 +1,12 @@
 ---@tag cds.activity
 ---@toc_entry What a plugin is waiting on
 ---@text
---- Every long call out, for a statusline segment. A run is tracked from
---- its start to its end; the segment names the runs out with how long each
---- has been out, a User autocmd fires on both edges, and a timer redraws the
---- statusline once a second while anything is out, so the seconds move
---- without the statusline plugin polling. The autocmd name and the clock are
---- parameters, so the module carries nothing of any one plugin.
+--- Tracks every long call a plugin has out, for a statusline segment. A run
+--- is tracked from its start to its end; the segment names the runs out with
+--- how long each has been out, a User autocmd fires on both edges, and a
+--- timer redraws the statusline once a second while anything is out, so the
+--- seconds move without the statusline plugin polling. The autocmd name and
+--- the clock are parameters, so the module carries nothing of any one plugin.
 ---@class cds.activity
 local M = {}
 
@@ -87,8 +87,8 @@ function Activity:finish(id)
   self:fire()
 end
 
---- The statusline text: `⟳ events google 2s`, every run out in the order they
---- started, joined by ` · `; empty when nothing is out.
+--- Writes the statusline text: `⟳ events google 2s`, every run out in the order
+--- they started, joined by ` · `; empty when nothing is out.
 ---@return string
 function Activity:segment()
   local parts = {}
@@ -106,8 +106,8 @@ end
 
 --- Tracks `task` from now to its completion, however it ends. The end is
 --- observed, never awaited: on this nightly a failing child fails the task
---- awaiting it, and the tracker must not die with what it tracks. The finish
---- is scheduled, since the completion callback may run in a fast event, where
+--- awaiting it, and the tracker must not die with what it tracks. The finish is
+--- scheduled, since the completion callback may run in a fast event, where
 --- firing an autocmd is refused.
 ---@param kind string
 ---@param label string

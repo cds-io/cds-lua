@@ -88,9 +88,8 @@ local forced = nil
 ---@type table<integer, cds.images.Placement[]>
 local placements = {}
 
---- For specs: use this backend (a table), none (false), or the usual (nil),
---- forgetting the placements made so far, since they were another
---- backend's.
+--- For specs: uses this backend (a table), none (false), or the usual (nil),
+--- forgetting the placements made so far, since they were another backend's.
 ---@param backend table|false|nil
 function M._use(backend)
   forced = backend

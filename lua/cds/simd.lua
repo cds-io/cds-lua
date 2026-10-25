@@ -1,8 +1,25 @@
--- Solana improvement documents, read: the proposals a line names, the
--- proposals directory (as the GitHub contents API lists it) as the index,
--- and the list and number values a frontmatter carries. The body is
--- markdown with a YAML frontmatter, which cds.eip reads. Plain lines in,
--- plain tables out; nothing here names the editor.
+-- Reads Solana improvement documents. The body is markdown behind a YAML
+-- frontmatter, which cds.eip.frontmatter reads into one string per field,
+-- joining a list onto one line; `list` and `number` then read those strings.
+-- SIMD-0064 opens with
+--
+--   simd: '0064'
+--   title: Transaction Receipts
+--   authors:
+--     - Anoushk Kharangate (Tinydancer)
+--     - Richard Patel (Jump)
+--
+-- and the fields come back as `simd = "'0064'"` and
+-- `authors = "- Anoushk Kharangate (Tinydancer) - Richard Patel (Jump)"`;
+-- `number(fields.simd)` is "64", and `list(fields.authors)` is
+-- { "Anoushk Kharangate (Tinydancer)", "Richard Patel (Jump)" }. A list
+-- written inline ("A (Anza), B (Anza)") splits at its commas.
+--
+-- `mentions` finds the proposals a line names, as a link to a proposal's file
+-- or a bare SIMD-0033, and `index` reads the proposals directory as the
+-- GitHub contents API lists it: every "NNNN-slug.md" name becomes an entry,
+-- its title read from the slug. Every function takes strings and answers
+-- tables, so the specs run under plain busted.
 local mentions = require("cds.mentions")
 
 ---@class cds.simd
@@ -33,11 +50,10 @@ local function named(id, section)
   return { kind = "simd", id = number(id), section = section }
 end
 
---- Every proposal a line names, in order of position: a markdown link to
---- a proposal's file (`./0033-slug.md`, or the repository's address for
---- it, with an anchor after #), the whole link; and a bare SIMD-0033,
---- SIMD-33, SIMD 0033 or SIMD 33 outside those. Numbers lose their
---- leading zeros.
+--- Finds every proposal a line names, in order of position: a markdown link to
+--- a proposal's file (`./0033-slug.md`, or the repository's address for it,
+--- with an anchor after #), the whole link; and a bare SIMD-0033, SIMD-33, SIMD
+--- 0033 or SIMD 33 outside those. Numbers lose their leading zeros.
 ---@param line string
 ---@return cds.simd.Mention[]
 function M.mentions(line)
@@ -48,9 +64,9 @@ function M.mentions(line)
   )
 end
 
---- The proposals directory as entries: every `"name": "NNNN-slug.md"` in
---- the contents API's answer, the title read from the slug (a few slugs
---- join their words with underscores).
+--- Reads the proposals directory as entries: every `"name": "NNNN-slug.md"` in
+--- the contents API's answer, the title read from the slug (a few slugs join
+--- their words with underscores).
 ---@param lines string[]
 ---@return cds.simd.Entry[]
 function M.index(lines)
@@ -66,8 +82,8 @@ function M.index(lines)
   return entries
 end
 
---- The items of a frontmatter list as cds.eip.frontmatter joins it
---- ("- A - B"), or of an inline value at its commas; none for nothing.
+--- Splits a frontmatter list as cds.eip.frontmatter joins it ("- A - B"), or an
+--- inline value at its commas; an empty or missing value gives none.
 ---@param value string|nil
 ---@return string[]
 function M.list(value)
@@ -85,7 +101,8 @@ function M.list(value)
   return items
 end
 
---- The number a frontmatter value carries ('0064' is 64); nil when none.
+--- Reads the number a frontmatter value carries ('0064' is "64"); nil when it
+--- carries none.
 ---@param value string|nil
 ---@return string|nil
 function M.number(value)

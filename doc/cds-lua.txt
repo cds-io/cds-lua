@@ -1,5 +1,5 @@
                                                                        *cds-lua*
-A common library for Neovim plugins written in a functional style:
+cds-lua is a common library for Neovim plugins written in a functional style:
 `fp` and `result` for the vocabulary, `task` for asynchronous work, and the
 modules that grew out of the plugins that use them (processes, HTTP,
 documents, redraws). Each module is pure Lua that names no plugin; every
@@ -145,13 +145,13 @@ Return ~
 
 ==============================================================================
                                                                     *cds.result*
-Lua's value, error convention as a small pipeline. A function answers
-`value`, or `nil, err`; only nil fails, so false and zero are valid
-successful values. A step that can refuse goes through `bind` or
-`traverse`; one that cannot goes through `map`, so a reader can tell the
-two apart at the call. Where a step cannot fail and there is no error to
-carry, |cds.fp.map()| is the plain list map. Errors are values until the
-dispatch rim turns the last one into a message for the reader.
+Composes Lua's own error convention: a function answers `value`, or
+`nil, err`, and only nil fails, so false and zero are valid successful
+values. A step that can refuse goes through `bind` or `traverse`; one that
+cannot goes through `map`, so a reader can tell the two apart at the call.
+Where a step cannot fail and there is no error to carry, |cds.fp.map()| is
+the plain list map. Errors are values until the dispatch rim turns the
+last one into a message for the reader.
 
 ------------------------------------------------------------------------------
                                                              *cds.result.bind()*
@@ -202,14 +202,14 @@ Return ~
 
 ==============================================================================
                                                                         *cds.fp*
-map, filter, reduce, find, find_map, any, all, set and unique over
-lists: the house list vocabulary, for the pure modules in the first place,
-which run under plain Lua 5.1 (none of these built in) and without `vim`,
-so without vim.iter. A list is a sequence (items at 1..n, no holes), read
-with ipairs. Map, filter and unique return fresh lists, set a fresh table,
-reduce the final accumulator, find the item, any and all a boolean. The
-helpers do not modify the input list. The function argument comes last, so
-one written out over several lines reads as a block.
+These are the list helpers the library and the plugins share: map, filter,
+reduce, find, find_map, any, all, set and unique. They exist because the
+pure modules run under plain Lua 5.1, which builds none of these in, and
+without `vim`, so without vim.iter. A list is a sequence (items at 1..n,
+no holes), read with ipairs. Map, filter and unique return fresh lists,
+set a fresh table, reduce the final accumulator, find the item, any and
+all a boolean; none modifies the input list. The function argument comes
+last, so one written out over several lines reads as a block.
 
 ------------------------------------------------------------------------------
                                                                   *cds.fp.map()*
@@ -359,10 +359,10 @@ Return ~
 
 ==============================================================================
                                                                       *cds.task*
-A lazy asynchronous result over vim.async. A Task is a recipe: nothing
-runs until |cds.Task:run()|, so a pipeline is built, combined and handed
-around as a value. Composition passes one value and one error, in the
-Result convention; nil and false are valid successes. >lua
+A Task is a lazy asynchronous result over vim.async: a recipe, so nothing
+runs until |cds.Task:run()|, and a pipeline can be built, combined and
+handed around as a value. Composition passes one value and one error, in
+the Result convention; nil and false are valid successes. >lua
 
   local Task = require("cds.task")
   Task.new(function()
@@ -655,16 +655,16 @@ Return ~
 
 ==============================================================================
                                                                     *cds.redraw*
-A buffer drawn again while it is on screen: the draw runs once, and
-every window showing the buffer is put back on its place, so the layout
-stays the reader's. The place is a key the caller names (a line, a
-section's tag, an item's signature) taken before the draw and sought after
-it; with no key, or when the key is gone, the window keeps its line,
-clamped to the new length. The two halves are `places` and `restore`, for
-a draw whose text lands later (a listing filled page by page); `windows` is
-both around a draw that returns with its text. Dependents of the buffer's
-text (a sidebar, folds) are the caller's to refresh, with the windows
-answered.
+Redraws a buffer while it is on screen and keeps the reader's place. The
+draw runs once, and every window showing the buffer is put back where it
+was, so the layout stays the reader's. The place is a key the caller
+names (a line, a section's tag, an item's signature), taken before the
+draw and sought after it; with no key, or when the key is gone, the
+window keeps its line, clamped to the new length. `places` and `restore`
+are the two halves, for a draw whose text lands later (a listing filled
+page by page); `windows` wraps both around a draw that returns with its
+text. Dependents of the buffer's text (a sidebar, folds) are the caller's
+to refresh, with the windows answered.
 
 ------------------------------------------------------------------------------
 Class ~
@@ -720,12 +720,12 @@ Return ~
 
 ==============================================================================
                                                                   *cds.activity*
-Every long call out, for a statusline segment. A run is tracked from
-its start to its end; the segment names the runs out with how long each
-has been out, a User autocmd fires on both edges, and a timer redraws the
-statusline once a second while anything is out, so the seconds move
-without the statusline plugin polling. The autocmd name and the clock are
-parameters, so the module carries nothing of any one plugin.
+Tracks every long call a plugin has out, for a statusline segment. A run
+is tracked from its start to its end; the segment names the runs out with
+how long each has been out, a User autocmd fires on both edges, and a
+timer redraws the statusline once a second while anything is out, so the
+seconds move without the statusline plugin polling. The autocmd name and
+the clock are parameters, so the module carries nothing of any one plugin.
 
 ------------------------------------------------------------------------------
 Class ~

@@ -1,12 +1,11 @@
--- A CSV reader for files whose records are one physical line each: the
--- RFC 4180 quoting of a field (a quoted field may hold commas, and a quote
--- inside it is written twice), and a header line that names the fields.
--- A field spanning lines is out of scope. Plain strings in, plain tables
--- out; nothing here names the editor.
+-- Reads CSV files whose records are one physical line each. `fields` splits
+-- one line with RFC 4180 quoting: a quoted field may hold commas, and a quote
+-- inside it is written twice. `records` reads a whole file, naming each field
+-- after the header line. A field spanning lines is out of scope.
 ---@class cds.csv
 local M = {}
 
---- The fields of one line. An unterminated quote is refused.
+--- Splits one line into its fields. An unterminated quote is refused.
 ---@param line string
 ---@return string[]|nil
 ---@return string|nil err
@@ -42,7 +41,7 @@ function M.fields(line)
   return fields
 end
 
---- The lines after the header as records keyed by its names; a blank line
+--- Reads the lines after the header as records keyed by its names; a blank line
 --- is skipped, and a line with a different number of fields is refused.
 ---@param lines string[]
 ---@return table<string, string>[]|nil

@@ -1,6 +1,7 @@
--- Calendar arithmetic on plain wall-clock values, and the LDML format subset
--- a note needs. No clock is read here and no zone database exists: a value is
--- { year, month, day, hour?, min? } and means what it says on the wall.
+-- Does calendar arithmetic on plain wall-clock values and formats them with
+-- the LDML subset a note needs. No clock is read here and no zone database
+-- exists: a value is { year, month, day, hour?, min? } and means what it says
+-- on the wall.
 --
 -- Every trip through os.time goes at noon. In a zone whose clocks go forward
 -- at midnight (Chile), 00:00 on the changeover day does not exist and mktime
@@ -42,14 +43,14 @@ function M.is_valid(y, m, d)
   return y >= 1900 and y <= 9999 and m >= 1 and m <= 12 and d >= 1 and d <= M.days_in_month(y, m)
 end
 
---- Seconds since the epoch for `dt`'s date at noon, local time.
+--- Converts `dt`'s date to seconds since the epoch at noon, local time.
 ---@param dt cds.DateTime
 ---@return integer
 function M.to_time(dt)
   return os.time({ year = dt.year, month = dt.month, day = dt.day, hour = 12, min = 0, sec = 0 })
 end
 
---- The date of `t` in local time; the time of day is dropped.
+--- Reads the date of `t` in local time; the time of day is dropped.
 ---@param t integer
 ---@return cds.DateTime
 function M.from_time(t)
@@ -66,7 +67,7 @@ function M.add_days(dt, n)
   return out
 end
 
---- ISO weekday: 1 is Monday, 7 is Sunday.
+--- Answers the ISO weekday: 1 is Monday, 7 is Sunday.
 ---@param dt cds.DateTime
 ---@return integer
 function M.weekday(dt)
@@ -80,7 +81,7 @@ local function first_weekday(first_day)
   return first_day == "sunday" and 7 or 1
 end
 
---- The first day of the week `dt` is in.
+--- Finds the first day of the week `dt` is in.
 ---@param dt cds.DateTime
 ---@param first_day "monday"|"sunday"
 ---@return cds.DateTime   -- date only
@@ -89,7 +90,7 @@ function M.start_of_week(dt, first_day)
   return M.date_only(M.add_days(dt, -back))
 end
 
---- The next date strictly after `dt` that falls on `wd`.
+--- Finds the next date strictly after `dt` that falls on `wd`.
 ---@param dt cds.DateTime
 ---@param wd integer   -- ISO weekday
 ---@return cds.DateTime   -- date only

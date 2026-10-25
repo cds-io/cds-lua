@@ -1,10 +1,10 @@
 ---@tag cds.task
 ---@toc_entry Tasks
 ---@text
---- A lazy asynchronous result over vim.async. A Task is a recipe: nothing
---- runs until |cds.Task:run()|, so a pipeline is built, combined and handed
---- around as a value. Composition passes one value and one error, in the
---- Result convention; nil and false are valid successes. >lua
+--- A Task is a lazy asynchronous result over vim.async: a recipe, so nothing
+--- runs until |cds.Task:run()|, and a pipeline can be built, combined and
+--- handed around as a value. Composition passes one value and one error, in
+--- the Result convention; nil and false are valid successes. >lua
 ---
 ---   local Task = require("cds.task")
 ---   Task.new(function()
@@ -21,7 +21,8 @@ local async = require("cds.async")
 local Task = {}
 Task.__index = Task
 
---- fn may yield and returns (value, err). Exceptions become errors at run.
+--- Makes a Task of fn, which may yield and returns (value, err). Exceptions
+--- become errors at run.
 ---@param fn fun(): any, any
 ---@return cds.Task
 function Task.new(fn)
@@ -47,8 +48,8 @@ function Task.fail(err)
   end)
 end
 
---- A Result (value, or nil and err) as a Task: the convention lifted.
---- A refusal must carry its error, as Task.fail requires.
+--- Lifts a Result (value, or nil and err) into a Task. A refusal must carry its
+--- error, as Task.fail requires.
 ---@param value any
 ---@param err any
 ---@return cds.Task
@@ -73,8 +74,8 @@ function Task:bind(fn)
   end)
 end
 
---- Bind a step written in the Result convention: fn answers a value, or
---- nil and its error, and the task fails with that error.
+--- Binds a step written in the Result convention: fn answers a value, or nil
+--- and its error, and the task fails with that error.
 ---@param fn fun(value: any): any, any
 ---@return cds.Task
 function Task:bind_result(fn)
@@ -93,7 +94,7 @@ function Task:map(fn)
   end)
 end
 
---- Run fn for its effect and pass the value on unchanged. A step that
+--- Runs fn for its effect and passes the value on unchanged: a step that
 --- records or reports what flowed through it, without a map that has to
 --- remember to return its input.
 ---@param fn fun(value: any)
@@ -105,9 +106,9 @@ function Task:tap(fn)
   end)
 end
 
---- Pass the value on when pred holds for it; otherwise fail. `reason` is the
---- error, or a function of the value that builds it, for the message that
---- wants to quote what was wrong.
+--- Passes the value on when pred holds for it; otherwise fails. `reason` is the
+--- error, or a function of the value that builds it, for the message that wants
+--- to quote what was wrong.
 ---@param pred fun(value: any): boolean
 ---@param reason any|fun(value: any): any
 ---@return cds.Task
@@ -120,9 +121,9 @@ function Task:ensure(pred, reason)
   end)
 end
 
---- The error through fn; a value passes untouched. The step that describes
---- a failure for the reader (what was being fetched, where it was met)
---- without a recover that fails again. Exceptions are not yet errors here;
+--- Passes the error through fn; a value passes untouched. This is the step that
+--- describes a failure for the reader (what was being fetched, where it was
+--- met) without a recover that fails again. Exceptions are not yet errors here;
 --- recover is the combinator that catches them.
 ---@param fn fun(err: any): any
 ---@return cds.Task
@@ -155,7 +156,7 @@ function Task:recover(fn)
   end)
 end
 
---- Resume composition on Neovim's main loop after a fast-event producer.
+--- Resumes composition on Neovim's main loop after a fast-event producer.
 ---@return cds.Task
 function Task:on_main()
   return Task.new(function()
@@ -176,7 +177,7 @@ function Task:limited(semaphore)
   end)
 end
 
---- Time a successful result. limited(...):timed() includes queue time;
+--- Times a successful result. limited(...):timed() includes queue time;
 --- timed():limited(...) measures only the time after acquiring the permit.
 --- Errors retain their original error channel.
 ---@param now? fun(): number Nanoseconds; injectable for deterministic checks.

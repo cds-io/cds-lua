@@ -210,8 +210,8 @@ local function today(ctx)
   return datetime.date_only(ctx.now)
 end
 
---- A date with no year: the next year in which it exists and is not before
---- today (feb 29 said in 2026 is 2028's).
+--- Finds, for a date with no year, the next year in which it exists and is not
+--- before today (feb 29 said in 2026 is 2028's).
 local function next_occurrence(ctx, month, day)
   local y = ctx.now.year
   for _ = 0, 8 do
@@ -249,7 +249,7 @@ local function optional_year(cur, n)
   return nil, 0
 end
 
---- A weekday, with this/next/last in front. Consumes 1 or 2 tokens.
+--- Reads a weekday, with this/next/last in front. Consumes 1 or 2 tokens.
 local function weekday_date(cur, ctx)
   local first = cur:word(0)
   local qualifier, wd, count
@@ -274,7 +274,7 @@ local function weekday_date(cur, ctx)
   return { date = date, span = span(cur:peek(0), cur:peek(count - 1)) }, count
 end
 
---- "oct 2", "2 oct", "october 2nd, 2027", "oct 2 2027"
+--- Reads "oct 2", "2 oct", "october 2nd, 2027", "oct 2 2027".
 local function month_name_date(cur, ctx)
   local month = M.words.months[cur:word(0) or ""]
   local day, day_tokens, count
@@ -304,7 +304,7 @@ local function month_name_date(cur, ctx)
   return { date = date, span = span(cur:peek(0), cur:peek(count - 1)), month = month }, count
 end
 
---- yyyy-mm-dd
+--- Reads yyyy-mm-dd.
 local function iso_date(cur)
   local y, m, d = cur:number(0), cur:number(2), cur:number(4)
   if y and #y == 4 and cur:punct(1, "-") and m and cur:punct(3, "-") and d then
@@ -317,7 +317,7 @@ local function iso_date(cur)
   return nil
 end
 
---- A date in one of ctx.formats, read from the raw text up to the next space.
+--- Reads a date in one of ctx.formats from the raw text up to the next space.
 local function formatted_date(cur, ctx, text)
   local first = cur:peek(0)
   if not first or not ctx.formats or #ctx.formats == 0 then
@@ -342,7 +342,7 @@ local function formatted_date(cur, ctx, text)
   return nil
 end
 
---- "today", "tomorrow", "in 3 days", "in 2 weeks"
+--- Reads "today", "tomorrow", "in 3 days", "in 2 weeks".
 local function relative_date(cur, ctx)
   local w = cur:word(0)
   if w and M.words.relative[w] then
@@ -355,7 +355,7 @@ local function relative_date(cur, ctx)
   return nil
 end
 
---- Any date form. Returns { date, span, month? } and the tokens consumed.
+--- Reads any date form. Returns { date, span, month? } and the tokens consumed.
 local function parse_date(cur, ctx, text)
   for _, rule in ipairs({ relative_date, weekday_date, iso_date, month_name_date }) do
     local found, count = rule(cur, ctx)
@@ -480,7 +480,7 @@ local function resolve_range(a, b)
   return sh, a.min, eh, b.min
 end
 
---- "for 45m", "for 1h", "for 1h30", "for 2 hours"
+--- Reads "for 45m", "for 1h", "for 1h30", "for 2 hours".
 ---@return integer? minutes, integer tokens
 local function parse_duration(cur)
   if cur:word(0) ~= "for" or not cur:number(1) or #cur:number(1) > 4 then
@@ -502,8 +502,9 @@ end
 
 -- Zones -------------------------------------------------------------------------
 
---- "ET", "UTC", "Europe/Paris". Returns the IANA name and the tokens consumed,
---- or false with a message when the word looks like a zone but is unknown.
+--- Reads "ET", "UTC", "Europe/Paris". Returns the IANA name and the tokens
+--- consumed, or false with a message when the word looks like a zone but is
+--- unknown.
 local function parse_zone(cur, ctx, text)
   local first = cur:peek(0)
   if not first or first.kind ~= "word" then

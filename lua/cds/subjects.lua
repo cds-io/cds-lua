@@ -1,9 +1,8 @@
--- The subjects a source files its documents under, as entries and the
--- forest they form: a path is a list of names, root first, and a node is
--- every prefix of every path. The RFC Editor's subject tags are read from
--- their published CSV; any other source builds entries from whatever
--- categories it has. Plain lines in, plain tables out; nothing here names
--- the editor.
+-- Files a source's documents under subjects and builds the forest the
+-- subjects form. A path is a list of names, root first, and `tree` makes a
+-- node of every prefix of every path, listing each entry under its direct
+-- paths. `rfc` reads the RFC Editor's subject tags from their published CSV;
+-- `entry` builds an entry from whatever categories another source has.
 local csv = require("cds.csv")
 
 ---@class cds.subjects
@@ -43,7 +42,8 @@ local function extends(path, prefix)
   return true
 end
 
---- An entry listed under the given paths that no other given path extends.
+--- Builds an entry listed under the given paths, keeping only those no other
+--- given path extends.
 ---@param id string
 ---@param label string
 ---@param paths string[][]
@@ -82,11 +82,10 @@ local function split(s, sep)
   end
 end
 
---- The RFC Editor's rfc-tags.csv as entries: the number without its
---- prefix, the title and year as the label, the `paths` column as the
---- paths, and each name in `tags` resolved to the given path that ends in
---- it. A tag naming no path is dropped; a row left with no direct path is
---- omitted.
+--- Reads the RFC Editor's rfc-tags.csv as entries: the number without its
+--- prefix, the title and year as the label, the `paths` column as the paths,
+--- and each name in `tags` resolved to the given path that ends in it. A tag
+--- naming no path is dropped; a row left with no direct path is omitted.
 ---@param lines string[]
 ---@return cds.subjects.Entry[]|nil
 ---@return string|nil err
@@ -136,9 +135,9 @@ local function by_number(a, b)
   return (tonumber(a.id) or 0) < (tonumber(b.id) or 0)
 end
 
---- The forest of every path prefix the entries name, each entry listed
---- under its direct paths, children and entries sorted; the roots named
---- in `order` come first, in that order, the rest after by name.
+--- Builds the forest of every path prefix the entries name, each entry listed
+--- under its direct paths, children and entries sorted; the roots named in
+--- `order` come first, in that order, the rest after by name.
 ---@param entries cds.subjects.Entry[]
 ---@param order? string[]
 ---@return cds.subjects.Node[]

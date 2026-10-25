@@ -71,7 +71,7 @@ function M.quote(s)
     .. '"'
 end
 
---- The config text for a request; exposed for specs.
+--- Writes the config text for a request; exposed for specs.
 ---@param req cds.http.Request
 ---@return string
 function M.config(req)

@@ -1,7 +1,7 @@
--- The macOS keychain through /usr/bin/security. Commands go to `security -i`
--- on stdin, so the value never reaches argv, and the value is hex (-X)
--- because the interactive parser tokenises on whitespace and rejects a quoted
--- JSON string. Exit 44 is "item not found".
+-- Reads and writes the macOS keychain through /usr/bin/security. Commands go
+-- to `security -i` on stdin, so the value never reaches argv, and the value
+-- is hex (-X) because the interactive parser tokenises on whitespace and
+-- rejects a quoted JSON string. Exit 44 is "item not found".
 local proc = require("cds.proc")
 
 ---@class cds.secrets.keychain

@@ -1,6 +1,6 @@
--- OAuth 2.0 for an installed app: a loopback-redirect login with PKCE, the
--- code exchange, token refresh and revocation. Knows no provider: endpoints,
--- scopes and credentials arrive in `client`.
+-- Runs OAuth 2.0 for an installed app: a loopback-redirect login with PKCE,
+-- the code exchange, token refresh and revocation. It knows no provider;
+-- endpoints, scopes and credentials arrive in `client`.
 local async = require("cds.async")
 
 ---@class cds.oauth
@@ -28,7 +28,8 @@ local status = M.http.status
 ---@field kind string
 ---@field message string
 
---- application/x-www-form-urlencoded; vim.uri_encode leaves `&`, `=` and `+` alone.
+--- Encodes `params` as application/x-www-form-urlencoded; vim.uri_encode leaves
+--- `&`, `=` and `+` alone, so this encodes them itself.
 ---@param params table<string, string>
 ---@return string
 function M.form(params)
@@ -67,7 +68,7 @@ local function sha256(s)
   return (assert(vim.text.hexdecode(vim.fn.sha256(s))))
 end
 
---- PKCE verifier and S256 challenge; exposed for specs.
+--- Makes a PKCE verifier and its S256 challenge; exposed for specs.
 ---@return string verifier
 ---@return string challenge
 function M.pkce()
@@ -174,7 +175,7 @@ end
 ---@field open fun(url: string)      -- shows the authorization URL to the user
 ---@field timeout integer?           -- ms to wait for the browser; default 120000
 
---- One interactive login. Returns the token set, or nil and an error whose
+--- Runs one interactive login. Returns the token set, or nil and an error whose
 --- kind is "timeout", "denied", "state", "listen" or a token endpoint kind.
 ---@param client cds.oauth.Client
 ---@param opts cds.oauth.LoginOpts
@@ -248,7 +249,8 @@ function M.refresh(client, refresh_token, now)
   return post_token(client, { grant_type = "refresh_token", refresh_token = refresh_token }, now)
 end
 
---- Best effort: the caller clears its store whatever this returns.
+--- Revokes the token, best effort: the caller clears its store whatever this
+--- returns.
 ---@param client cds.oauth.Client
 ---@param token string
 ---@return boolean ok

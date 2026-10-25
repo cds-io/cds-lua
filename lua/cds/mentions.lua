@@ -1,9 +1,10 @@
--- The scan under the proposal readers' mentions: the links a line makes,
--- by their patterns, then the bare spellings outside them, in order of
--- position. A reader gives the forms (a pattern with captures, and what
--- the captures mean); the scan gives every mention its byte range, blanks
--- the links before the bare pass (so a link's text is found once and
--- every position still counts from the line's start), and sorts.
+-- Scans a line for mentions; the proposal readers build theirs on it. A
+-- reader gives the forms: a pattern with captures, and a function that says
+-- what the captures mean. `scan` finds the links first, by their patterns,
+-- then the bare spellings outside them, and sorts them by position. It blanks
+-- the links before the bare pass, so a link's text is found once and every
+-- position still counts from the line's start. Every mention carries its
+-- byte range.
 ---@class cds.mentions
 local M = {}
 
@@ -38,9 +39,9 @@ local function each(line, form, add)
   end
 end
 
---- Every mention a line makes: the links by their forms, then the bare
---- form outside them, where a bare match stands on its own (no letter,
---- digit or dash before it, no letter or digit after).
+--- Finds every mention a line makes: the links by their forms, then the bare
+--- form outside them, where a bare match stands on its own (no letter, digit or
+--- dash before it, no letter or digit after).
 ---@param line string
 ---@param links cds.MentionForm[]
 ---@param bare cds.MentionForm

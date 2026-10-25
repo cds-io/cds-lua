@@ -176,6 +176,8 @@ local function markdown(lines)
       if not (line == "" and md[#md] == "```lua") then
         md[#md + 1] = (line:gsub("^  ", ""))
       end
+    elseif line:match("^  ") then
+      md[#md + 1] = "  " .. line -- an indented example: Markdown's indented code block
     else
       md[#md + 1] = (line:gsub("|([%w%.:_%-()]+)|", link))
     end

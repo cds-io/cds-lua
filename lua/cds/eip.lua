@@ -1,7 +1,23 @@
--- Ethereum improvement proposals, read: the frontmatter, the headings and
--- fenced code of the markdown body, the EIP and ERC mentions a line makes,
--- and the listing page (eips.ethereum.org/all, ercs.ethereum.org/all) as
--- entries. Plain lines in, plain tables out; nothing here names the editor.
+-- Reads Ethereum improvement proposals. `frontmatter` reads the YAML header
+-- into one string per field and says where the body starts; EIP-1 opens with
+--
+--   ---
+--   eip: 1
+--   title: EIP Purpose and Guidelines
+--   status: Living
+--   type: Meta
+--   author: Martin Becze <mb@ethereum.org>, Hudson Jameson <hudson@ethereum.org>, et al.
+--   created: 2015-10-27
+--   ---
+--
+-- and comes back as `{ eip = "1", title = "EIP Purpose and Guidelines", ... }`
+-- with the body starting on line 9. `headings`, `fences` and `tables` read
+-- the markdown body, and `blocks` folds them into the one list a renderer
+-- walks; `plain` turns a line's inline markup into text. `mentions` finds the
+-- EIPs and ERCs a line names, and `requires` the numbers a `requires:` field
+-- names. `listing` reads eips.ethereum.org/all (or the ERC site's page) as
+-- entries. Every function takes lines and answers tables, so the specs run
+-- under plain busted.
 local mentions = require("cds.mentions")
 
 ---@class cds.eip
@@ -52,9 +68,10 @@ local function trim(s)
   return (s:match("^%s*(.-)%s*$"))
 end
 
---- The YAML frontmatter as a table of strings, and the first line of the
---- body. A value on the lines that follow its key (indented) is joined to
---- it. Without a frontmatter the table is empty and the body starts at 1.
+--- Reads the YAML frontmatter into a table of strings and answers the first
+--- line of the body. A value on the lines that follow its key (indented) is
+--- joined to it. Without a frontmatter the table is empty and the body starts
+--- at 1.
 ---@param lines string[]
 ---@return table<string, string> fields
 ---@return integer body
@@ -78,7 +95,7 @@ function M.frontmatter(lines)
   return fields, #lines + 1
 end
 
---- The fenced code blocks, so a # inside one is not a heading.
+--- Finds the fenced code blocks, so a # inside one is not read as a heading.
 ---@param lines string[]
 ---@return cds.eip.Fence[]
 function M.fences(lines)
@@ -115,7 +132,7 @@ local function fenced(fences)
   end
 end
 
---- The headings of the body, outside fenced code.
+--- Finds the headings of the body, outside fenced code.
 ---@param lines string[]
 ---@return cds.eip.Heading[]
 function M.headings(lines)
@@ -129,7 +146,8 @@ function M.headings(lines)
   return headings
 end
 
---- The numbers a `requires:` field names.
+--- Reads the numbers a `requires:` field names: "155, 2718" gives { "155",
+--- "2718" }.
 ---@param fields table<string, string>
 ---@return string[]
 function M.requires(fields)
@@ -149,9 +167,9 @@ local function named(kind, id)
   return { kind = kind:lower(), id = id }
 end
 
---- Every EIP or ERC a line mentions, in order of position: a markdown link
---- whose text names one ("[EIP-2718](./eip-2718.md)", the whole link) and a
---- bare "EIP-155" or "ERC-20". The kind is the one the text uses.
+--- Finds every EIP or ERC a line mentions, in order of position: a markdown
+--- link whose text names one ("[EIP-2718](./eip-2718.md)", the whole link) and
+--- a bare "EIP-155" or "ERC-20". The kind is the one the text uses.
 ---@param line string
 ---@return cds.eip.Mention[]
 function M.mentions(line)
@@ -169,10 +187,10 @@ local function unescape(s)
   end))
 end
 
---- Markdown inline markup and inline HTML as plain text: tags dropped (a
---- <code> span becomes backticks), entities unescaped, **bold** and *em* as
---- their text. A code span is kept as written, and so is an autolink
---- (<https://...>), which is no tag.
+--- Turns markdown inline markup and inline HTML into plain text: tags are
+--- dropped (a <code> span becomes backticks), entities unescaped, **bold** and
+--- *em* reduced to their text. A code span is kept as written, and so is an
+--- autolink (<https://...>), which is no tag.
 ---@param s string
 ---@return string
 function M.plain(s)
@@ -191,7 +209,8 @@ function M.plain(s)
   end))
 end
 
---- A pipe table's cells: the text between the bars, trimmed and plain.
+--- Splits a pipe table's row into cells: the text between the bars, trimmed and
+--- plain.
 ---@param line string
 ---@return string[]
 local function pipe_cells(line)
@@ -202,9 +221,9 @@ local function pipe_cells(line)
   return cells
 end
 
---- Every table in the text, HTML (<table>...</table>, as pandoc writes
---- them) or markdown (a row of bars, then the |---|---| rule, then rows),
---- as rows of plain-text cells.
+--- Reads every table in the text as rows of plain-text cells, whether HTML
+--- (<table>...</table>, as pandoc writes them) or markdown (a row of bars, then
+--- the |---|---| rule, then rows).
 ---@param lines string[]
 ---@return cds.eip.Table[]
 function M.tables(lines)
@@ -246,14 +265,13 @@ function M.tables(lines)
   return tables
 end
 
---- Ordered lists numbered as markdown means them: a run of items at one
---- indent (`1. a`, blank lines between items allowed) counts up from the
---- first item's number, whatever the author wrote on the rest, so a list
---- written as `1. 1. 1.` reads 1, 2, 3. A nested list counts on its own
---- by its indent; an item at a shallower indent ends the deeper runs. Any
---- other line, or any block that is no line, ends every run: a
---- continuation paragraph indented under an item ends it too, which only
---- leaves such a list as the author wrote it.
+--- Numbers ordered lists as markdown means them: a run of items at one indent
+--- (`1. a`, blank lines between items allowed) counts up from the first item's
+--- number, whatever the author wrote on the rest, so a list written as `1. 1.
+--- 1.` reads 1, 2, 3. A nested list counts on its own by its indent; an item at
+--- a shallower indent ends the deeper runs. Any other line, or any block that
+--- is no line, ends every run: a continuation paragraph indented under an item
+--- ends it too, which leaves such a list as the author wrote it.
 ---@param blocks cds.eip.Block[]
 ---@return cds.eip.Block[]
 local function number_lists(blocks)
@@ -280,10 +298,9 @@ local function number_lists(blocks)
   return blocks
 end
 
---- The body as blocks, every piece of text already plain: a heading, a
---- fenced code block, a table, or one line, with ordered lists numbered.
---- This is the view a renderer folds over, so no kind of text can miss
---- the plain-text pass.
+--- Folds the body into blocks, every piece of text already plain: a heading, a
+--- fenced code block, a table, or one line, with ordered lists numbered. A
+--- renderer walks this list, so no kind of text can miss the plain-text pass.
 ---@param lines string[]
 ---@param from? integer   -- the first body line; 1 unless given
 ---@return cds.eip.Block[]
@@ -328,9 +345,9 @@ function M.blocks(lines, from)
   return number_lists(blocks)
 end
 
---- The listing page as entries: each table row's number and title, under
---- the status heading the row sits beneath and the category the page's
---- title names (a category page reads "Core"; the all page reads "All").
+--- Reads the listing page as entries: each table row's number and title, under
+--- the status heading the row sits beneath and the category the page's title
+--- names (a category page reads "Core"; the all page reads "All").
 ---@param lines string[]
 ---@return cds.eip.Entry[]
 function M.listing(lines)

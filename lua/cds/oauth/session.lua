@@ -96,7 +96,7 @@ function Session:clear()
   return true
 end
 
---- The stored token set, for a caller that revokes before clearing.
+--- Returns the stored token set, for a caller that revokes before clearing.
 ---@return cds.oauth.TokenSet? set
 ---@return cds.oauth.Error? err
 function Session:get()
@@ -138,7 +138,7 @@ function Session:do_refresh()
   return fresh.access_token
 end
 
---- A bearer token, refreshing when fewer than SLACK seconds remain.
+--- Returns a bearer token, refreshing when fewer than SLACK seconds remain.
 ---@return string? token
 ---@return cds.oauth.Error? err
 function Session:token()

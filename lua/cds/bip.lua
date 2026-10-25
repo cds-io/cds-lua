@@ -1,8 +1,12 @@
--- Bitcoin improvement proposals, read: the preamble, the headings, code
--- and tables of a MediaWiki body, its footnotes, the proposals a line
--- names, and the repository's README as the index. A proposal written in
--- markdown shares the preamble and the mentions and leaves its body to
--- cds.eip. Plain lines in, plain tables out; nothing here names the editor.
+-- Reads Bitcoin improvement proposals. `preamble` reads the header of
+-- `Key: value` lines; `format` says whether the body is MediaWiki or
+-- markdown. For a MediaWiki body, `headings`, `code`, `tables` and
+-- `footnotes` read their parts, `plain` and `unlink` turn the inline markup
+-- into text, and `blocks` folds everything into the one list a renderer
+-- walks; a markdown body is cds.eip's. `mentions` finds the proposals a line
+-- names, and `index` reads the repository's README table as entries. Every
+-- function takes lines and answers tables, so the specs run under plain
+-- busted.
 local mentions = require("cds.mentions")
 
 ---@class cds.bip
@@ -109,7 +113,7 @@ local function unescape(s)
   )
 end
 
---- Which markup the text is written in: MediaWiki when a line is a ==
+--- Says which markup the text is written in: MediaWiki when a line is a ==
 --- heading (every such proposal has one), markdown otherwise.
 ---@param lines string[]
 ---@return "mediawiki"|"markdown"
@@ -125,10 +129,10 @@ end
 -- a key starts with a letter; a continued value may start with a date
 local FIELD = "^%s+(%a[%w%-]*):%s*(.-)%s*$"
 
---- The preamble: the first <pre> block (a ``` fence in markdown) whose
---- lines are `  Key: value`, as a table keyed by the lowercased keys, with
---- the lines it spans. A value continued on deeper-indented lines is joined
---- with spaces. Without one the table is empty and the range nil.
+--- Reads the preamble, the first <pre> block (a ``` fence in markdown) whose
+--- lines are `  Key: value`, into a table keyed by the lowercased keys, and
+--- answers the lines it spans. A value continued on deeper-indented lines is
+--- joined with spaces. Without one the table is empty and the range nil.
 ---@param lines string[]
 ---@return table<string, string> fields
 ---@return integer|nil first
@@ -162,11 +166,12 @@ function M.preamble(lines)
   return {}, nil, nil
 end
 
---- The code blocks: <pre> and <source lang="x">. A line that starts with
---- the opening tag opens one, text after the tag its first line; the line
---- holding the closing tag ends it, text before the tag its last; the tags
---- on one line are a one-line block. A block inside other text on its line
---- is a code span, not a block. An unterminated block runs to the end.
+--- Finds the code blocks, <pre> and <source lang="x">. A line that starts with
+--- the opening tag opens one, and the text after the tag is its first line; the
+--- line holding the closing tag ends it, and the text before the tag is its
+--- last; both tags on one line make a one-line block. A tag inside other text
+--- on its line is a code span, so no block. An unterminated block runs to the
+--- end.
 ---@param lines string[]
 ---@return cds.bip.Code[]
 function M.code(lines)
@@ -229,8 +234,8 @@ local function within(blocks)
   end
 end
 
---- The headings, outside code: ==Title== is level 1, each further sign one
---- deeper; the titles plain.
+--- Finds the headings outside code: ==Title== is level 1, each further sign one
+--- deeper; the titles come back plain.
 ---@param lines string[]
 ---@return cds.bip.Heading[]
 function M.headings(lines)
@@ -244,8 +249,8 @@ function M.headings(lines)
   return headings
 end
 
---- Every wiki link as its text: [[x|text]] is text, [[x]] is x, a file is
---- nothing.
+--- Replaces every wiki link with its text: [[x|text]] becomes text, [[x]]
+--- becomes x, and a file link becomes nothing.
 ---@param s string
 ---@return string
 function M.unlink(s)
@@ -259,11 +264,11 @@ function M.unlink(s)
   )
 end
 
---- MediaWiki inline markup as plain text: bold and italic marks dropped,
---- <code>, <tt> and an inline <pre> as backticks, every other tag dropped
---- with its text kept, an external link as its text and address, a wiki
---- link to a proposal (or into the document) kept for the mention pass and
---- any other unwrapped, entities unescaped.
+--- Turns MediaWiki inline markup into plain text: bold and italic marks are
+--- dropped; <code>, <tt> and an inline <pre> become backticks; every other tag
+--- is dropped with its text kept; an external link becomes its text and
+--- address; a wiki link to a proposal (or into the document) is kept for the
+--- mention pass and any other is unwrapped; entities are unescaped.
 ---@param s string
 ---@return string
 function M.plain(s)
@@ -298,8 +303,8 @@ function M.plain(s)
   end))
 end
 
---- A row's cell: an attribute prefix (colspan=4|) dropped, the text plain
---- and unlinked.
+--- Reads a row's cell: an attribute prefix (colspan=4|) is dropped, and the
+--- text comes back plain and unlinked.
 ---@param cell string
 ---@return string
 local function plain_cell(cell)
@@ -307,10 +312,10 @@ local function plain_cell(cell)
   return trim(M.unlink(M.plain(text)))
 end
 
---- Every wikitable ({| ... |}) as rows of plain cells: |- starts a row, a
---- ! line holds header cells split at !!, a | line cells split at ||; a
---- line without a mark continues the last cell. The caption is a |+ line,
---- or a ! row of one cell spanning columns, which the BIPs write instead.
+--- Reads every wikitable ({| ... |}) as rows of plain cells: |- starts a row, a
+--- ! line holds header cells split at !!, a | line holds cells split at ||, and
+--- a line without a mark continues the last cell. The caption is a |+ line, or
+--- a ! row of one cell spanning the columns, which the BIPs write instead.
 ---@param lines string[]
 ---@return cds.bip.Table[]
 function M.tables(lines)
@@ -369,11 +374,10 @@ function M.tables(lines)
   return tables
 end
 
---- The footnotes: every <ref>text</ref> replaced by its number in brackets
---- and collected, in order of first use; a named ref used again by
---- <ref name="x" /> keeps its number; a ref closed on a later line takes
---- the lines between into its text and leaves them empty. The notes' text
---- is plain.
+--- Collects the footnotes: every <ref>text</ref> is replaced by its number in
+--- brackets, in order of first use; a named ref used again by <ref name="x" />
+--- keeps its number; a ref closed on a later line takes the lines between into
+--- its text and leaves them empty. The notes' text comes back plain.
 ---@param lines string[]
 ---@return string[] lines   -- the same count, markers in place of refs
 ---@return cds.bip.Note[] notes
@@ -455,11 +459,11 @@ local function own(section)
   return { kind = "bip", section = section }
 end
 
---- Every proposal a line names, in order of position: a wiki link
---- ([[bip-0032.mediawiki|BIP 32]], with a section after #), a link into
---- the document itself ([[#anchor|text]]), a markdown link
---- ([BIP 2](bip-0002.mediawiki)), and a bare BIP 32, BIP-32, BIP-0032,
---- BIP32 or BIP0032 outside those. Numbers lose their leading zeros.
+--- Finds every proposal a line names, in order of position: a wiki link
+--- ([[bip-0032.mediawiki|BIP 32]], with a section after #), a link into the
+--- document itself ([[#anchor|text]]), a markdown link
+--- ([BIP 2](bip-0002.mediawiki)), and a bare BIP 32, BIP-32, BIP-0032, BIP32
+--- or BIP0032 outside those. Numbers lose their leading zeros.
 ---@param line string
 ---@return cds.bip.Mention[]
 function M.mentions(line)
@@ -470,11 +474,10 @@ function M.mentions(line)
   }, { "BIP[%- ]?0*(%d+)", named })
 end
 
---- The body as blocks, every piece of text already plain: a heading, a
---- code block (as a fence, the shape a renderer folds over), a table, the
---- notes where <references /> stands, or one line. The footnotes are
---- replaced first, so a line carries its markers. Lines in `omit` (the
---- preamble) are left out.
+--- Folds the body into blocks, every piece of text already plain: a heading, a
+--- code block (as a fence, the shape a renderer walks), a table, the notes
+--- where <references /> stands, or one line. The footnotes are replaced first,
+--- so a line carries its markers. Lines in `omit` (the preamble) are left out.
 ---@param lines string[]
 ---@param omit? { first: integer, last: integer }
 ---@return cds.bip.Block[]
@@ -523,9 +526,9 @@ function M.blocks(lines, omit)
   return blocks
 end
 
---- The README's table as entries: a row starts with the link to the
---- proposal's file, and its next cells are the layer, title, owner, type
---- and status.
+--- Reads the README's table as entries: a row starts with the link to the
+--- proposal's file, and its next cells are the layer, title, owner, type and
+--- status.
 ---@param lines string[]
 ---@return cds.bip.Entry[]
 function M.index(lines)

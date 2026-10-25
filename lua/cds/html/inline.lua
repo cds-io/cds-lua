@@ -1,7 +1,8 @@
--- A node's inline text: pieces appended with whitespace folded at the
--- seams, code in backticks, an abbreviation expanded once, and every link
--- a mention by its byte range: a section of the report, another report,
--- or a reference entry. Everything else is the text alone.
+-- Reads a node's inline text. Pieces are appended with whitespace folded at
+-- the seams, code is wrapped in backticks, an abbreviation is expanded once,
+-- and every link becomes a mention with its byte range: a section of the
+-- report, another report, or a reference entry. Everything else is the text
+-- alone.
 local fp = require("cds.fp")
 local tree = require("cds.html.tree")
 local tokens = require("cds.html.tokens")
@@ -56,8 +57,8 @@ end
 ---@field text string
 ---@field mentions cds.Mention[]
 
---- A text builder: pieces appended with whitespace folded at the seams,
---- and mentions recorded by their byte ranges in the finished text.
+--- Makes a text builder: pieces are appended with whitespace folded at the
+--- seams, and mentions are recorded by their byte ranges in the finished text.
 local function builder()
   local b = { parts = {}, len = 0, mentions = {}, pending_space = false }
   function b.append(piece)
@@ -116,15 +117,15 @@ end
 
 local inline_into
 
---- The shortname of a fragment-free report URL, or nil.
+--- Reads the shortname of a fragment-free report URL, or nil.
 ---@param href string
 ---@return string|nil
 local function report_of(href)
   return href:match("^https?://www%.w3%.org/TR/([^/#?]+)/?$")
 end
 
---- An anchor appended to the builder as text, a mention, or text with its
---- URL once.
+--- Appends an anchor to the builder as text, a mention, or text with its URL
+--- once.
 ---@param node cds.html.Node
 ---@param b table
 ---@param ctx cds.html.Context
@@ -188,7 +189,7 @@ inline_into = function(children, b, ctx)
   end
 end
 
---- The inline text of some children.
+--- Reads the inline text of some children.
 ---@param children (cds.html.Node|string)[]
 ---@param ctx cds.html.Context
 ---@return cds.html.Text

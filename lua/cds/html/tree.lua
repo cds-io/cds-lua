@@ -1,7 +1,7 @@
--- The tokens as a tree, and the questions a reader asks of a node: its
--- classes, its plain text, the first or every node that answers a test.
--- A close tag pops to the nearest open element of its name; the end tags
--- the generators leave out are supplied by the rules below.
+-- Builds the element tree from the tokens and answers the questions a reader
+-- asks of a node: its classes, its plain text, the first or every node that
+-- passes a test. A close tag pops to the nearest open element of its name,
+-- and the end tags the generators leave out are supplied by the rules below.
 local fp = require("cds.fp")
 local tokens = require("cds.html.tokens")
 
@@ -36,7 +36,7 @@ local CLOSES = {
   option = fp.set({ "option" }),
 }
 
---- The tokens as a tree under one root.
+--- Builds the tree of the tokens under one root.
 ---@param toks cds.html.Token[]
 ---@return cds.html.Node
 function M.tree(toks)
@@ -74,7 +74,7 @@ function M.tree(toks)
   return root
 end
 
---- The tree of a report's lines.
+--- Builds the tree of a report's lines.
 ---@param lines string[]
 ---@return cds.html.Node
 function M.of(lines)
@@ -88,7 +88,7 @@ function M.is_element(child)
   return type(child) ~= "string"
 end
 
---- A test for an element of the name.
+--- Makes a test for an element of the name.
 ---@param name string
 ---@return fun(child: cds.html.Node|string): boolean
 function M.named(name)
@@ -107,7 +107,7 @@ function M.classes(node)
   return set
 end
 
---- A test for an element carrying the class.
+--- Makes a test for an element carrying the class.
 ---@param class string
 ---@return fun(child: cds.html.Node|string): boolean
 function M.classed(class)
@@ -116,7 +116,7 @@ function M.classed(class)
   end
 end
 
---- Every string under a node, joined: what a label is before squashing.
+--- Joins every string under a node: what a label is before squashing.
 ---@param node cds.html.Node|string
 ---@return string
 function M.plain(node)
@@ -141,7 +141,7 @@ function M.split(children, test)
   return found, rest
 end
 
---- Every node under `root` that answers the test, in document order.
+--- Finds every node under `root` that passes the test, in document order.
 ---@param root cds.html.Node
 ---@param test fun(node: cds.html.Node): boolean
 ---@return cds.html.Node[]
@@ -161,7 +161,7 @@ function M.find_all(root, test)
   return out
 end
 
---- The first node under `root` that answers the test, and its parent.
+--- Finds the first node under `root` that passes the test, and its parent.
 ---@param root cds.html.Node
 ---@param test fun(node: cds.html.Node): boolean
 ---@return cds.html.Node|nil
@@ -183,7 +183,7 @@ function M.find_first(root, test)
   return walk(root)
 end
 
---- The first node under `root` with the id, and its parent.
+--- Finds the first node under `root` with the id, and its parent.
 ---@param root cds.html.Node
 ---@param id string
 ---@return cds.html.Node|nil

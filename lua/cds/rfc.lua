@@ -1,8 +1,10 @@
--- RFC text, read: the table of contents with each section's heading line,
--- the references and the RFC an entry cites, the references a line makes,
--- and the RFC Editor's index. Plain lines in, plain tables out; nothing
--- here names the editor, so it runs under plain busted and copies into any
--- plugin that reads RFCs.
+-- Reads RFC text. `contents` reads the table of contents, with the line each
+-- section's heading sits on; `references` reads the references section and
+-- `cited_rfc` the RFC an entry cites; `mentions` finds the RFCs a line names;
+-- `blocks` folds the text into the one list a renderer walks; `index` reads
+-- the RFC Editor's index. Every function takes lines and answers tables, so
+-- the specs run under plain busted and any plugin that reads RFCs can use
+-- them.
 local fp = require("cds.fp")
 
 ---@class cds.rfc
@@ -105,7 +107,7 @@ local ROWS = {
   },
 }
 
---- A numbered row, by the first shape that fits.
+--- Reads a numbered row, by the first shape that fits.
 ---@param line string
 ---@return cds.rfc.Row|nil
 local function parse_numbered_row(line)
@@ -118,7 +120,7 @@ local function parse_numbered_row(line)
   end)
 end
 
---- An unnumbered part (Acknowledgements, Index): at the top-level indent,
+--- Reads an unnumbered part (Acknowledgements, Index): at the top-level indent,
 --- starting with a capital. Anything deeper is a wrapped title's second line.
 ---@param line string
 ---@param top_indent integer|nil   -- the indent of the ToC's top-level rows, once known
@@ -179,11 +181,11 @@ local function has_page(line)
   return line:match("%s%d+$") ~= nil or line:match("%.%d+$") ~= nil
 end
 
---- The table of contents, each row with the line its heading sits on in the
---- body; empty when the text has no table of contents. The ToC ends where the
---- first section begins: the first line that reads as the first row's heading
---- and is not a row itself (no page number, a different indent). A row whose
---- heading never appears is left out.
+--- Reads the table of contents, each row with the line its heading sits on in
+--- the body; empty when the text has none. The ToC ends where the first section
+--- begins: the first line that reads as the first row's heading and is not a
+--- row itself (no page number, a different indent). A row whose heading never
+--- appears is left out.
 ---@param lines string[]
 ---@return cds.rfc.Section[]
 function M.contents(lines)
@@ -247,8 +249,8 @@ end
 
 local CITATION = "%[[%w/%.%-]+%]"
 
---- The references section: its heading line and every entry's citation key
---- with the line it starts on. `line` is nil when no section is titled
+--- Reads the references section: its heading line and every entry's citation
+--- key with the line it starts on. `line` is nil when no section is titled
 --- References, and the entries are then empty.
 ---@param lines string[]
 ---@param sections cds.rfc.Section[]
@@ -269,7 +271,7 @@ function M.references(lines, sections)
   return { line = from, entries = entries }
 end
 
---- The RFC a reference entry cites: the first "RFC nnnn" in the entry's
+--- Finds the RFC a reference entry cites: the first "RFC nnnn" in the entry's
 --- block, which runs to the next blank line.
 ---@param lines string[]
 ---@param entry_line integer
@@ -286,12 +288,11 @@ function M.cited_rfc(lines, entry_line)
   end
 end
 
---- Every reference a line makes, in order of position: "[RFC2616]" and
+--- Finds every reference a line makes, in order of position: "[RFC2616]" and
 --- "RFC 2616" as rfc mentions, "Section 3.1" as a section (with the RFC or
 --- citation an "of" names), and "[CACHING]" as a citation. Each scan is a
---- gmatch with position captures; the bracketed mentions are blanked out
---- of the line the bare scan reads, so "RFC2616" inside "[RFC2616]" is
---- found once.
+--- gmatch with position captures; the bracketed mentions are blanked out of the
+--- line the bare scan reads, so "RFC2616" inside "[RFC2616]" is found once.
 ---@param line string
 ---@return cds.rfc.Mention[]
 function M.mentions(line)
@@ -334,10 +335,10 @@ function M.mentions(line)
   return found
 end
 
---- The text as blocks, one per line, each classified and carrying what it
---- names: a page header (left alone by a renderer), a section heading, a
---- row of the table of contents, the first line of a reference entry, or
---- any other line. This is the view a renderer folds over.
+--- Classifies the text into blocks, one per line, each carrying what it names:
+--- a page header (left alone by a renderer), a section heading, a row of the
+--- table of contents, the first line of a reference entry, or any other line. A
+--- renderer walks this list.
 ---@param lines string[]
 ---@return cds.rfc.Block[]
 function M.blocks(lines)
@@ -373,9 +374,9 @@ function M.blocks(lines)
   return blocks
 end
 
---- The RFC Editor's index (rfc-index.txt) as entries. A block is a number
---- at column 0 and the indented lines that follow it; "Not Issued" numbers
---- are left out.
+--- Reads the RFC Editor's index (rfc-index.txt) as entries. A block is a number
+--- at column 0 and the indented lines that follow it; "Not Issued" numbers are
+--- left out.
 ---@param lines string[]
 ---@return cds.rfc.IndexEntry[]
 function M.index(lines)

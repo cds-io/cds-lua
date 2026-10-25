@@ -1,6 +1,6 @@
 ---@tag cds-lua
 ---@text
---- A common library for Neovim plugins written in a functional style:
+--- cds-lua is a common library for Neovim plugins written in a functional style:
 --- `fp` and `result` for the vocabulary, `task` for asynchronous work, and the
 --- modules that grew out of the plugins that use them (processes, HTTP,
 --- documents, redraws). Each module is pure Lua that names no plugin; every
@@ -65,7 +65,7 @@ local INDEXER = 2
 
 ---@alias cds.needs.Capabilities table<string, string[]>  -- cds module to the functions used
 
---- The modules named, in name order.
+--- Lists the modules named, in name order.
 ---@param capabilities cds.needs.Capabilities
 ---@return string[]
 local function modules(capabilities)
@@ -85,9 +85,9 @@ local function has(mod, fn)
   return value ~= nil and not module.is_fallback(value)
 end
 
---- The capabilities the library present lacks, as "fp.filter" names,
---- modules in name order and each in declaration order: a name the module
---- has nothing under, or every name of a module that does not load.
+--- Lists the capabilities the library present lacks, as "fp.filter" names,
+--- modules in name order and each in declaration order: a name the module has
+--- nothing under, or every name of a module that does not load.
 ---@param capabilities cds.needs.Capabilities
 ---@return string[]
 function M.missing(capabilities)
@@ -102,7 +102,7 @@ function M.missing(capabilities)
   end)
 end
 
---- nil when everything declared is here; otherwise one sentence for the
+--- Answers nil when everything declared is here; otherwise one sentence for the
 --- reader, naming the plugin, the missing functions and the remedy.
 ---@param plugin string  -- truth-table.nvim
 ---@param capabilities cds.needs.Capabilities
@@ -124,16 +124,15 @@ local function in_library(info)
   return info ~= nil and info.source:find("lua/cds/", 1, true) ~= nil
 end
 
---- Each declared module replaced, in package.loaded, by a proxy that holds
---- nothing itself: a declared name reads from the real module, so a seam a
---- spec replaces there (`proc.runner`) is what the plugin's own code reads;
---- any other name raises, naming the plugin whose declaration is short; a
---- write goes to the real module, since a plugin setting a hook the module
---- leaves nil (`http.trace`) is not declaring a name it reads.
---- The library's own modules pass through, since they use each other beyond
---- the declaration; a module the tier cannot load (one that needs `vim`,
---- under plain busted) is left alone. For a spec harness, before any spec
---- runs.
+--- Replaces each declared module, in package.loaded, with a proxy that holds
+--- nothing itself: a declared name reads from the real module, so a seam a spec
+--- replaces there (`proc.runner`) is what the plugin's own code reads; any
+--- other name raises, naming the plugin whose declaration is short; a write
+--- goes to the real module, since a plugin setting a hook the module leaves nil
+--- (`http.trace`) is not declaring a name it reads. The library's own modules
+--- pass through, since they use each other beyond the declaration; a module the
+--- tier cannot load (one that needs `vim`, under plain busted) is left alone.
+--- For a spec harness, before any spec runs.
 ---@param plugin string
 ---@param capabilities cds.needs.Capabilities
 function M.strict(plugin, capabilities)

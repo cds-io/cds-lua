@@ -26,7 +26,7 @@ local M = {}
 -- every fallback handed out, weakly, so is_fallback knows them
 local fallbacks = setmetatable({}, { __mode = "k" })
 
---- The module with the fallback behind it.
+--- Puts the fallback behind the module and answers the module.
 ---@generic T: table
 ---@param name string  -- "fp", "html.blocks"
 ---@param mod T

@@ -1,14 +1,14 @@
 ---@tag cds.fp
 ---@toc_entry Lists
 ---@text
---- map, filter, reduce, find, find_map, any, all, set and unique over
---- lists: the house list vocabulary, for the pure modules in the first place,
---- which run under plain Lua 5.1 (none of these built in) and without `vim`,
---- so without vim.iter. A list is a sequence (items at 1..n, no holes), read
---- with ipairs. Map, filter and unique return fresh lists, set a fresh table,
---- reduce the final accumulator, find the item, any and all a boolean. The
---- helpers do not modify the input list. The function argument comes last, so
---- one written out over several lines reads as a block.
+--- These are the list helpers the library and the plugins share: map, filter,
+--- reduce, find, find_map, any, all, set and unique. They exist because the
+--- pure modules run under plain Lua 5.1, which builds none of these in, and
+--- without `vim`, so without vim.iter. A list is a sequence (items at 1..n,
+--- no holes), read with ipairs. Map, filter and unique return fresh lists,
+--- set a fresh table, reduce the final accumulator, find the item, any and
+--- all a boolean; none modifies the input list. The function argument comes
+--- last, so one written out over several lines reads as a block.
 ---@class cds.fp
 local M = {}
 
