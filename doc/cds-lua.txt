@@ -1,0 +1,471 @@
+                                                                       *cds-lua*
+cds-lua is a common library for Neovim plugins written in a functional
+style: `task` for asynchronous work, and the modules that grew out of the
+plugins that use them (processes, HTTP, documents, redraws). The
+vocabulary they are written in, |cds.fp| for lists and |cds.result| for
+the Result convention, is the cds-lua-fp rock (|cds-lua-fp|), which this
+library depends on; |cds.needs|, from the same rock, is how a plugin takes
+both: it declares the functions it calls, and the check at startup names
+what the libraries installed lack. Each module is pure Lua that names no
+plugin; every function answers `value` or `nil, err`, and `nil` alone
+means failure.
+
+This manual covers the modules the plugins call in common. The rest (the
+document readers, OAuth, processes, dates) are documented in their source,
+which the language server shows on hover, and on the reference site.
+
+  Tasks ........................................................... |cds.task|
+  vim.async, named once .......................................... |cds.async|
+  HTTP through curl ............................................... |cds.http|
+  A buffer drawn again in place ................................. |cds.redraw|
+  What a plugin is waiting on ................................. |cds.activity|
+
+                                                                      *cds.task*
+A Task is a lazy asynchronous result over vim.async: a recipe, so nothing
+runs until |cds.Task:run()|, and a pipeline can be built, combined and
+handed around as a value. Composition passes one value and one error, in
+the Result convention; nil and false are valid successes. >lua
+
+  local Task = require("cds.task")
+  Task.new(function()
+    return http.request({ method = "GET", url = url })
+  end)
+    :bind_result(parse)
+    :map_err(function(err) return "the index: " .. err.message end)
+    :run()
+<
+
+------------------------------------------------------------------------------
+                                                                *cds.Task.new()*
+                                `Task.new`({fn})
+Makes a Task of fn, which may yield and returns (value, err). Exceptions
+become errors at run.
+Parameters ~
+{fn} `(fun(): any, any)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                                 *cds.Task.of()*
+                               `Task.of`({value})
+Makes a Task that answers `value`.
+Parameters ~
+{value} `(any)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                               *cds.Task.fail()*
+                               `Task.fail`({err})
+Makes a Task that fails with `err`, which must not be nil.
+Parameters ~
+{err} `(any)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                          *cds.Task.of_result()*
+                        `Task.of_result`({value}, {err})
+Lifts a Result (value, or nil and err) into a Task. A refusal must carry its
+error, as Task.fail requires.
+Parameters ~
+{value} `(any)`
+{err} `(any)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                               *cds.Task:bind()*
+                               `Task:bind`({fn})
+Passes the value through `fn`, which answers the Task to go on with; an
+error passes through untouched.
+Parameters ~
+{fn} `(fun(value: any): cds.Task)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                        *cds.Task:bind_result()*
+                            `Task:bind_result`({fn})
+Binds a step written in the Result convention: fn answers a value, or nil
+and its error, and the task fails with that error.
+Parameters ~
+{fn} `(fun(value: any): any, any)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                                *cds.Task:map()*
+                                `Task:map`({fn})
+Passes the value through `fn`, which always answers; an error passes through
+untouched.
+Parameters ~
+{fn} `(fun(value: any): any)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                                *cds.Task:tap()*
+                                `Task:tap`({fn})
+Runs fn for its effect and passes the value on unchanged: a step that
+records or reports what flowed through it, without a map that has to
+remember to return its input.
+Parameters ~
+{fn} `(fun(value: any))`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                             *cds.Task:ensure()*
+                        `Task:ensure`({pred}, {reason})
+Passes the value on when pred holds for it; otherwise fails. `reason` is the
+error, or a function of the value that builds it, for the message that wants
+to quote what was wrong.
+Parameters ~
+{pred} `(fun(value: any): boolean)`
+{reason} `(any|fun(value: any): any)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                            *cds.Task:map_err()*
+                              `Task:map_err`({fn})
+Passes the error through fn; a value passes untouched. This is the step that
+describes a failure for the reader (what was being fetched, where it was
+met) without a recover that fails again. Exceptions are not yet errors here;
+recover is the combinator that catches them.
+Parameters ~
+{fn} `(fun(err: any): any)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                            *cds.Task:recover()*
+                              `Task:recover`({fn})
+Passes the error through `fn`, which answers the Task to go on with; a value
+passes through untouched. Recovery also catches exceptions, inside the child
+rather than its awaiter: an uncaught vim.async child failure can cancel its
+siblings.
+Parameters ~
+{fn} `(fun(err: any): cds.Task)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                            *cds.Task:on_main()*
+                                `Task:on_main`()
+Resumes composition on Neovim's main loop after a fast-event producer.
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                            *cds.Task:limited()*
+                          `Task:limited`({semaphore})
+Evaluates while holding an existing semaphore, shared across the batch.
+Parameters ~
+{semaphore} `(vim.async.Semaphore)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                              *cds.Task:timed()*
+                              `Task:timed`({now})
+Times a successful result. limited(...):timed() includes queue time;
+timed():limited(...) measures only the time after acquiring the permit.
+Errors retain their original error channel.
+Parameters ~
+{now} `(optional)` `(fun(): number Nanoseconds; injectable for deterministic checks.)`
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                                *cds.Task:run()*
+                                  `Task:run`()
+Starts a fresh run and returns the native handle for activity/on_complete.
+Return ~
+`(vim.async.Task)`
+
+------------------------------------------------------------------------------
+                                                                *cds.Task.all()*
+                              `Task.all`({tasks})
+Starts all tasks and joins every run, even on error: remote writes cannot
+be rolled back by cancelling their siblings. Results retain nil slots via n.
+Returns the first error in input order only after all runs have settled.
+Parameters ~
+{tasks} `(cds.Task[])`
+Return ~
+`(cds.Task)`
+
+
+==============================================================================
+                                                                     *cds.async*
+The one module that names vim.async. It is new in Neovim 0.13 and may
+still change before that release; every caller goes through here, so a
+rename is a one-file fix. The module is vim.async itself, under a type
+declared here as the four functions the family calls, each a step in the
+Result convention: a value, or nil and its error. vim.async's own
+annotations are variadic generics the language server cannot follow.
+
+------------------------------------------------------------------------------
+Alias ~
+{cds.async.Step} `(fun(...: any): any, any)` a value, or nil and its error
+
+------------------------------------------------------------------------------
+Class ~
+{cds.async}
+Fields ~
+{run} `(fun(fn: cds.async.Step, ...: any): vim.async.Task)` starts the step as a task
+{await} `(fun(...: any): any, any)` a task, or (argc, callback-taking fn, args...)
+{timeout} `(fun(ms: integer, task: vim.async.Task): any, any)` the task's answer, or an error at the deadline
+{semaphore} `(fun(permits: integer): vim.async.Semaphore)`
+
+
+==============================================================================
+                                                                      *cds.http*
+Every option travels as a config file on curl's stdin (`--config -`),
+so a bearer token or client secret never appears in argv or in `ps`. An
+HTTP response of any status returns normally; only a transport failure
+returns nil plus a classified error.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.http.Request}
+Fields ~
+{method} `(string)`
+{url} `(string)`
+{headers} `(table<string, string>?)`
+{body} `(string?)`
+{timeout} `(integer?)` seconds for curl's --max-time; default 30
+
+------------------------------------------------------------------------------
+Class ~
+{cds.http.Response}
+Fields ~
+{status} `(integer)`
+{headers} `(table<string, string>)` lower-cased names
+{body} `(string)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.http.Error}
+Fields ~
+{kind} `("unreachable"|"timeout"|"interrupted"|"tls"|"curl"|"spawn")`
+{message} `(string)`
+
+------------------------------------------------------------------------------
+                                                               *cds.http.status*
+                                 `http.status`
+Names the statuses a caller branches on, and the one class that matters as a
+class: a 5xx is the server's trouble, worth trying later. Success is OK
+alone, since a 201 or a 204 carries no body to read.
+
+------------------------------------------------------------------------------
+                                                   *cds.http.status.transient()*
+                        `http.status.transient`({code})
+Whether a status is the server's trouble (a 5xx), worth trying later.
+Parameters ~
+{code} `(integer)`
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                              *cds.http.quote()*
+                               `http.quote`({s})
+Quotes a value for a curl config file: `"..."` with backslash escapes.
+Parameters ~
+{s} `(string)`
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                             *cds.http.config()*
+                              `http.config`({req})
+Writes the config text for a request; exposed for specs.
+Parameters ~
+{req} `(cds.http.Request)`
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                              *cds.http.parse()*
+                              `http.parse`({out})
+Splits curl's stdout (dumped headers, body, then the write-out) into a Response.
+Parameters ~
+{out} `(string)`
+Return ~
+`(cds.http.Response?)`
+
+------------------------------------------------------------------------------
+                                                                *cds.http.trace*
+                                  `http.trace`
+Set to a function to be told about every request: { method, url (without
+its query), status or kind, ms }. Headers and bodies are never passed.
+Type ~
+`((fun(rec: { method: string, url: string, status: integer?, kind: string?, ms: integer }))?)`
+
+------------------------------------------------------------------------------
+                                                            *cds.http.request()*
+                             `http.request`({req})
+Performs the request and answers the response, of any status, or nil and a
+classified transport error; `trace` is told either way.
+Parameters ~
+{req} `(cds.http.Request)`
+Return ~
+`(cds.http.Response?)` response
+`(cds.http.Error?)` err
+
+
+==============================================================================
+                                                                    *cds.redraw*
+Redraws a buffer while it is on screen and keeps the reader's place. The
+draw runs once, and every window showing the buffer is put back where it
+was, so the layout stays the reader's. The place is a key the caller
+names (a line, a section's tag, an item's signature), taken before the
+draw and sought after it; with no key, or when the key is gone, the
+window keeps its line, clamped to the new length. `places` and `restore`
+are the two halves, for a draw whose text lands later (a listing filled
+page by page); `windows` wraps both around a draw that returns with its
+text. Dependents of the buffer's text (a sidebar, folds) are the caller's
+to refresh, with the windows answered.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.redraw.Keep}
+Fields ~
+{key} `(fun(win: integer): any)` the window's place before the draw; nil for none
+{seek} `(fun(win: integer, key: any): boolean)` the window onto its place after; false when the place is gone
+
+------------------------------------------------------------------------------
+Class ~
+{cds.redraw.Places}
+Fields ~
+{buf} `(integer)`
+{wins} `(integer[])` the windows showing the buffer when taken
+{of} `(table<integer, { cursor: integer[], key: any }>)` each window's cursor and place
+
+------------------------------------------------------------------------------
+                                                           *cds.redraw.places()*
+                         `redraw.places`({buf}, {keep})
+Takes the windows showing `buf` and each one's place before a draw: its
+cursor, and the key `keep` names when given.
+Parameters ~
+{buf} `(integer)`
+{keep} `(optional)` `(cds.redraw.Keep)`
+Return ~
+`(cds.redraw.Places)`
+
+------------------------------------------------------------------------------
+                                                          *cds.redraw.restore()*
+                       `redraw.restore`({places}, {keep})
+Puts each window back on its place after the draw: where `keep` finds the
+key it named, or on its line clamped to the new length. A window gone
+meanwhile is passed over. Whenever after: at once, or when the text the
+place is in has landed.
+Parameters ~
+{places} `(cds.redraw.Places)`
+{keep} `(optional)` `(cds.redraw.Keep)`
+
+------------------------------------------------------------------------------
+                                                          *cds.redraw.windows()*
+                    `redraw.windows`({buf}, {draw}, {keep})
+Runs `draw` with the windows showing `buf`, then puts each window back:
+on the place `keep` names when it is still there, on its line otherwise.
+The two halves as one call, for a draw whose text is there when it
+returns. Answers the windows, for the caller's own dependents.
+Parameters ~
+{buf} `(integer)`
+{draw} `(fun(wins: integer[]))`
+{keep} `(optional)` `(cds.redraw.Keep)`
+Return ~
+`(integer[])` wins
+
+
+==============================================================================
+                                                                  *cds.activity*
+Tracks every long call a plugin has out, for a statusline segment. A run
+is tracked from its start to its end; the segment names the runs out with
+how long each has been out, a User autocmd fires on both edges, and a
+timer redraws the statusline once a second while anything is out, so the
+seconds move without the statusline plugin polling. The autocmd name and
+the clock are parameters, so the module carries nothing of any one plugin.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.activity.Options}
+Fields ~
+{autocmd} `(string)` the User autocmd pattern fired on both edges
+{now} `(optional)` `(fun(): integer)` milliseconds; vim.uv.now unless a spec sets one
+
+------------------------------------------------------------------------------
+Class ~
+{cds.Activity}
+Fields ~
+{runs} `(table<integer, { kind: string, label: string, started: integer }>)`
+{next_id} `(integer)`
+{timer} `(uv.uv_timer_t?)` running while anything is out
+{pattern} `(string)`
+{now} `(fun(): integer)`
+
+------------------------------------------------------------------------------
+                                                            *cds.activity.new()*
+                             `activity.new`({opts})
+Makes a tracker that fires `opts.autocmd` on both edges of every run.
+Parameters ~
+{opts} `(cds.activity.Options)`
+Return ~
+`(cds.Activity)`
+
+------------------------------------------------------------------------------
+                                                          *cds.Activity:begin()*
+                       `Activity:begin`({kind}, {label})
+Records a run out and returns the id that ends it.
+Parameters ~
+{kind} `(string)` what is running: "schedule", "events", "complete"
+{label} `(string)` who: the adapter's name
+Return ~
+`(integer)` id
+
+------------------------------------------------------------------------------
+                                                         *cds.Activity:finish()*
+                            `Activity:finish`({id})
+Forgets a run; nothing for an id already ended.
+Parameters ~
+{id} `(integer)`
+
+------------------------------------------------------------------------------
+                                                        *cds.Activity:segment()*
+                              `Activity:segment`()
+Writes the statusline text: `⟳ events google 2s`, every run out in the order
+they started, joined by ` · `; empty when nothing is out.
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                           *cds.Activity:busy()*
+                               `Activity:busy`()
+Whether any run is out.
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                          *cds.Activity:track()*
+                   `Activity:track`({kind}, {label}, {task})
+Tracks `task` from now to its completion, however it ends. The end is
+observed, never awaited: on this nightly a failing child fails the task
+awaiting it, and the tracker must not die with what it tracks. The finish is
+scheduled, since the completion callback may run in a fast event, where
+firing an autocmd is refused.
+Parameters ~
+{kind} `(string)`
+{label} `(string)`
+{task} `(vim.async.Task)` what cds.Task:run answers
+Return ~
+`(vim.async.Task)` task
+
+------------------------------------------------------------------------------
+                                                          *cds.Activity:reset()*
+                               `Activity:reset`()
+Forgets every run; for the specs.
+
+
+ vim:tw=78:ts=8:noet:ft=help:norl:

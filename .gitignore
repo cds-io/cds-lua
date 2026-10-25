@@ -1,0 +1,5 @@
+# :helptags output; the plugin manager builds it on install
+doc/tags
+
+# the reference site's generated pages (make site); the front page is committed
+site/modules/

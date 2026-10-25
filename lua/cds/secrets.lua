@@ -1,9 +1,10 @@
--- Secret storage behind one small contract. `get` has three answers, and the
--- difference between the last two is what keeps a locked store from being
--- mistaken for "no credentials":
+-- Stores secrets behind one small contract. `get` has three answers, and the
+-- difference between the last two keeps a locked store from being mistaken
+-- for "no credentials":
 --   value        present
 --   nil, nil     absent
 --   nil, message the backend could not answer
+---@class cds.secrets
 local M = {}
 
 ---@class cds.secrets.Store
@@ -48,4 +49,4 @@ function M.open(spec)
   return backend(spec)
 end
 
-return require("cds.module")("secrets", M)
+return require("cds.module").wrap("secrets", M)

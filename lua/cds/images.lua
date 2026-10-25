@@ -4,6 +4,7 @@
 -- first backend is image.nvim; another is another table below, chosen by
 -- which plugin loads. With no backend, available() is false and every
 -- other call is a no-op, so a document reads as rendered.
+---@class cds.images
 local M = {}
 
 ---@class cds.images.Spec
@@ -87,9 +88,8 @@ local forced = nil
 ---@type table<integer, cds.images.Placement[]>
 local placements = {}
 
---- For specs: use this backend (a table), none (false), or the usual (nil),
---- forgetting the placements made so far, since they were another
---- backend's.
+--- For specs: uses this backend (a table), none (false), or the usual (nil),
+--- forgetting the placements made so far, since they were another backend's.
 ---@param backend table|false|nil
 function M._use(backend)
   forced = backend
@@ -158,4 +158,4 @@ function M.clear_all(buf)
   placements[buf] = nil
 end
 
-return require("cds.module")("images", M)
+return require("cds.module").wrap("images", M)

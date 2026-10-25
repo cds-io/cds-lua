@@ -1,11 +1,13 @@
--- What a plugin is waiting on: every long call out, for a statusline segment.
--- A run is tracked from its start to its end; the segment names the runs out
--- with how long each has been out, a User autocmd fires on both edges, and a
--- timer redraws the statusline once a second while anything is out, so the
--- seconds move without the statusline plugin polling.
---
--- Ported from crosscut's activity module; the autocmd name and the clock are
--- parameters so the file carries nothing of either plugin.
+---@tag cds.activity
+---@toc_entry What a plugin is waiting on
+---@text
+--- Tracks every long call a plugin has out, for a statusline segment. A run
+--- is tracked from its start to its end; the segment names the runs out with
+--- how long each has been out, a User autocmd fires on both edges, and a
+--- timer redraws the statusline once a second while anything is out, so the
+--- seconds move without the statusline plugin polling. The autocmd name and
+--- the clock are parameters, so the module carries nothing of any one plugin.
+---@class cds.activity
 local M = {}
 
 ---@class cds.activity.Options
@@ -14,9 +16,14 @@ local M = {}
 
 ---@class cds.Activity
 ---@field runs table<integer, { kind: string, label: string, started: integer }>
+---@field next_id integer
+---@field timer uv.uv_timer_t?     -- running while anything is out
+---@field pattern string
+---@field now fun(): integer
 local Activity = {}
 Activity.__index = Activity
 
+--- Makes a tracker that fires `opts.autocmd` on both edges of every run.
 ---@param opts cds.activity.Options
 ---@return cds.Activity
 function M.new(opts)
@@ -80,8 +87,8 @@ function Activity:finish(id)
   self:fire()
 end
 
---- The statusline text: `⟳ events google 2s`, every run out in the order they
---- started, joined by ` · `; empty when nothing is out.
+--- Writes the statusline text: `⟳ events google 2s`, every run out in the order
+--- they started, joined by ` · `; empty when nothing is out.
 ---@return string
 function Activity:segment()
   local parts = {}
@@ -97,16 +104,15 @@ function Activity:busy()
   return next(self.runs) ~= nil
 end
 
---- `task` tracked from now to its completion, however it ends. The end is
+--- Tracks `task` from now to its completion, however it ends. The end is
 --- observed, never awaited: on this nightly a failing child fails the task
---- awaiting it, and the tracker must not die with what it tracks. The finish
---- is scheduled, since the completion callback may run in a fast event, where
+--- awaiting it, and the tracker must not die with what it tracks. The finish is
+--- scheduled, since the completion callback may run in a fast event, where
 --- firing an autocmd is refused.
----@generic T
 ---@param kind string
 ---@param label string
----@param task T   -- a cds.async task (anything with on_complete)
----@return T task
+---@param task vim.async.Task   -- what cds.Task:run answers
+---@return vim.async.Task task
 function Activity:track(kind, label, task)
   local id = self:begin(kind, label)
   task:on_complete(function()
@@ -123,4 +129,4 @@ function Activity:reset()
   self:stop_timer()
 end
 
-return require("cds.module")("activity", M)
+return require("cds.module").wrap("activity", M)

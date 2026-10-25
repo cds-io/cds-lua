@@ -1,14 +1,15 @@
--- A report's body as blocks, the view a renderer folds over: headings
+-- Folds a report's body into blocks, the one list a renderer walks: headings
 -- with their numbers and ids, paragraphs, code, tables, lists, definition
 -- lists, figures, callouts (notes, examples, issues, details, tabbed
--- examples) and quotes, every text plain with its mentions; loose inline
--- content between blocks gathers into paragraphs. And the head: the
--- title, the subtitle, the metadata and the abstract.
+-- examples) and quotes, each text plain with its mentions. Loose inline
+-- content between blocks gathers into paragraphs. `head` reads the title,
+-- the subtitle, the metadata and the abstract.
 local fp = require("cds.fp")
 local tree = require("cds.html.tree")
 local inline = require("cds.html.inline")
 local tokens = require("cds.html.tokens")
 
+---@class cds.html.blocks
 local M = {}
 
 local squash, plain, classes = tokens.squash, tree.plain, tree.classes
@@ -36,7 +37,7 @@ local squash, plain, classes = tokens.squash, tree.plain, tree.classes
 
 local is_self_link = tree.classed("self-link")
 
---- A label from a self-link part ("Figure 1", "Example 1") and the rest
+--- Builds a label from a self-link part ("Figure 1", "Example 1") and the rest
 --- ("Smart Home", ": Sample"): "Figure 1: Smart Home".
 ---@param node cds.html.Node
 ---@return string
@@ -57,9 +58,9 @@ local function label_of(node)
   return a .. ": " .. b
 end
 
---- The heading number a `.secno` child holds, without its trailing dot,
---- and the heading's children without it and without the empty self-link
---- a heading carries.
+--- Reads the heading number a `.secno` child holds, without its trailing dot,
+--- and answers the heading's children without it and without the empty self-
+--- link a heading carries.
 ---@param node cds.html.Node
 ---@return string|nil number
 ---@return (cds.html.Node|string)[] rest
@@ -71,7 +72,7 @@ local function secno(node)
   end)
 end
 
---- The code lines of a `pre`: every string under it, as written, the
+--- Reads the code lines of a `pre`: every string under it, as written, with the
 --- one newline a browser drops after the opening tag dropped too.
 ---@param node cds.html.Node
 ---@return string[]
@@ -95,7 +96,7 @@ local function code_lang(node)
   return code and ((code.attrs.class or ""):match("hljs%s+(%w+)") or "") or ""
 end
 
---- The tab and the name a tabbed-example class list carries, or nil.
+--- Reads the tab and the name a tabbed-example class list carries, or nil.
 ---@param node cds.html.Node
 ---@return string|nil tab
 ---@return string|nil name
@@ -111,7 +112,7 @@ local function tab_of(node)
   return tab, name
 end
 
---- A table's rows as texts; a cell's blocks are joined with spaces.
+--- Reads a table's rows as texts; a cell's blocks are joined with spaces.
 ---@param node cds.html.Node
 ---@param ctx cds.html.Context
 ---@return string|nil caption
@@ -152,7 +153,7 @@ local function table_of(node, ctx)
   return caption, header, rows
 end
 
---- An object's fallback content as one line of text: the list a Bikeshed
+--- Reads an object's fallback content as one line of text: the list a Bikeshed
 --- object carries, each item numbered or dashed.
 ---@param blocks cds.html.Block[]
 ---@return string
@@ -176,19 +177,19 @@ end
 
 local blocks_of
 
---- A figure block from a `figure`, a bare `img`, or an `object`; nil for
+--- Builds a figure block from a `figure`, a bare `img`, or an `object`; nil for
 --- an image with nothing to say.
 ---@param child cds.html.Node
 ---@param ctx cds.html.Context
 ---@param buttons table<string, string>
 ---@return cds.html.Block|nil
 local function figure_of(child, ctx, buttons)
-  local img, caption = child, nil
+  local img, caption = child, nil ---@type cds.html.Node?, string?
   if child.name == "figure" then
     img = fp.find(child.children, function(c)
       return type(c) ~= "string" and (c.name == "img" or c.name == "object")
-    end)
-    local fc = fp.find(child.children, tree.named("figcaption"))
+    end) --[[@as cds.html.Node?]]
+    local fc = fp.find(child.children, tree.named("figcaption")) --[[@as cds.html.Node?]]
     caption = fc and label_of(fc) or nil
   end
   if not img then
@@ -211,8 +212,8 @@ local function figure_of(child, ctx, buttons)
   }
 end
 
---- A definition list's entries: each `dt` a term, the `dd`s after it its
---- blocks; a `dd` before any `dt` gets an empty term.
+--- Reads a definition list's entries: each `dt` is a term and the `dd`s after
+--- it are its blocks; a `dd` before any `dt` gets an empty term.
 ---@param node cds.html.Node
 ---@param ctx cds.html.Context
 ---@param buttons table<string, string>
@@ -362,8 +363,8 @@ blocks_of = function(children, ctx, buttons)
   return out
 end
 
---- The ids of every heading and section, and the labels of every tabbed
---- example's buttons.
+--- Collects the ids of every heading and section, and the labels of every
+--- tabbed example's buttons.
 ---@param root cds.html.Node
 ---@return table<string, boolean> ids
 ---@return table<string, string> buttons
@@ -394,9 +395,9 @@ local function context(root)
   return { ids = ids, abbr = {}, section = nil }, buttons
 end
 
---- The report's body as blocks: everything after the title, the contents
---- and the head's furniture dropped, loose text gathered into paragraphs,
---- every text plain with its mentions.
+--- Folds the report's body into blocks: everything after the title, with the
+--- contents and the head's furniture dropped, loose text gathered into
+--- paragraphs, and every text plain with its mentions.
 ---@param lines string[]
 ---@return cds.html.Block[]
 function M.blocks(lines)
@@ -405,7 +406,7 @@ function M.blocks(lines)
   return blocks_of(root.children, ctx, buttons)
 end
 
---- The report's head: the title, the subtitle line under it ("W3C
+--- Reads the report's head: the title, the subtitle line under it ("W3C
 --- Recommendation 05 December 2023"), the metadata list and the abstract.
 ---@param lines string[]
 ---@return { title: string, subtitle: string, meta: { term: string, text: cds.html.Text }[], abstract: cds.html.Text[] }
@@ -437,4 +438,4 @@ function M.head(lines)
   }
 end
 
-return require("cds.module")("html.blocks", M)
+return require("cds.module").wrap("html.blocks", M)

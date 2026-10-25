@@ -22,6 +22,7 @@ local async = require("cds.async")
 local Session = {}
 Session.__index = Session
 
+---@class cds.oauth.session
 local M = {}
 
 -- Seconds of remaining life below which the access token is refreshed early.
@@ -95,7 +96,7 @@ function Session:clear()
   return true
 end
 
---- The stored token set, for a caller that revokes before clearing.
+--- Returns the stored token set, for a caller that revokes before clearing.
 ---@return cds.oauth.TokenSet? set
 ---@return cds.oauth.Error? err
 function Session:get()
@@ -120,6 +121,7 @@ function Session:do_refresh()
   local oauth = require("cds.oauth")
   local fresh, err = oauth.refresh(self.client, self.set.refresh_token, self.now())
   if not fresh then
+    assert(err, "a refused refresh carries its error")
     if err.kind == "invalid_grant" then
       self:clear()
       return nil, { kind = "revoked", message = err.message }
@@ -136,7 +138,7 @@ function Session:do_refresh()
   return fresh.access_token
 end
 
---- A bearer token, refreshing when fewer than SLACK seconds remain.
+--- Returns a bearer token, refreshing when fewer than SLACK seconds remain.
 ---@return string? token
 ---@return cds.oauth.Error? err
 function Session:token()
@@ -165,4 +167,4 @@ function Session:token()
   return async.await(self.refreshing)
 end
 
-return require("cds.module")("oauth.session", M)
+return require("cds.module").wrap("oauth.session", M)

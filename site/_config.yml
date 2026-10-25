@@ -1,0 +1,10 @@
+title: cds-lua
+description: A common library for Neovim plugins written in a functional style
+remote_theme: just-the-docs/just-the-docs
+plugins:
+  - jekyll-remote-theme
+search_enabled: true
+aux_links:
+  cds-lua on GitHub: https://github.com/cds-io/cds-lua
+exclude:
+  - README.md

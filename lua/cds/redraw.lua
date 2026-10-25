@@ -1,19 +1,24 @@
--- A buffer drawn again while it is on screen: the draw runs once, and every
--- window showing the buffer is put back on its place, so the layout stays
--- the reader's. The place is a key the caller names (a line, a section's
--- tag, an item's signature) taken before the draw and sought after it; with
--- no key, or when the key is gone, the window keeps its line, clamped to
--- the new length. The two halves are `places` and `restore`, for a draw
--- whose text lands later (a listing filled page by page); `windows` is both
--- around a draw that returns with its text. Dependents of the buffer's text
--- (a sidebar, folds) are the caller's to refresh, with the windows answered.
+---@tag cds.redraw
+---@toc_entry A buffer drawn again in place
+---@text
+--- Redraws a buffer while it is on screen and keeps the reader's place. The
+--- draw runs once, and every window showing the buffer is put back where it
+--- was, so the layout stays the reader's. The place is a key the caller
+--- names (a line, a section's tag, an item's signature), taken before the
+--- draw and sought after it; with no key, or when the key is gone, the
+--- window keeps its line, clamped to the new length. `places` and `restore`
+--- are the two halves, for a draw whose text lands later (a listing filled
+--- page by page); `windows` wraps both around a draw that returns with its
+--- text. Dependents of the buffer's text (a sidebar, folds) are the caller's
+--- to refresh, with the windows answered.
+---@class cds.redraw
 local M = {}
 
 ---@class cds.redraw.Keep
 ---@field key fun(win: integer): any                 -- the window's place before the draw; nil for none
 ---@field seek fun(win: integer, key: any): boolean  -- the window onto its place after; false when the place is gone
 
---- The window's cursor, its line clamped to the buffer's length.
+--- Sets the window's cursor, its line clamped to the buffer's length.
 ---@param win integer
 ---@param cursor integer[]
 local function clamp(win, cursor)
@@ -26,8 +31,8 @@ end
 ---@field wins integer[]                                    -- the windows showing the buffer when taken
 ---@field of table<integer, { cursor: integer[], key: any }>  -- each window's cursor and place
 
---- The windows showing `buf` and each one's place, taken before a draw:
---- its cursor, and the key `keep` names when given.
+--- Takes the windows showing `buf` and each one's place before a draw: its
+--- cursor, and the key `keep` names when given.
 ---@param buf integer
 ---@param keep? cds.redraw.Keep
 ---@return cds.redraw.Places
@@ -40,10 +45,10 @@ function M.places(buf, keep)
   return { buf = buf, wins = wins, of = of }
 end
 
---- Each window back on its place, after the draw: where `keep` finds the
+--- Puts each window back on its place after the draw: where `keep` finds the
 --- key it named, or on its line clamped to the new length. A window gone
---- meanwhile is passed over. Whenever after: at once, or when the text
---- the place is in has landed.
+--- meanwhile is passed over. Whenever after: at once, or when the text the
+--- place is in has landed.
 ---@param places cds.redraw.Places
 ---@param keep? cds.redraw.Keep
 function M.restore(places, keep)
@@ -73,4 +78,4 @@ function M.windows(buf, draw, keep)
   return places.wins
 end
 
-return require("cds.module")("redraw", M)
+return require("cds.module").wrap("redraw", M)

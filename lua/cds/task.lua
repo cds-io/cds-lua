@@ -1,18 +1,54 @@
--- A lazy asynchronous result over vim.async. Composition passes one value and
--- one error; nil and false are valid successes. Only run starts effects.
+---@tag cds-lua
+---@text
+--- cds-lua is a common library for Neovim plugins written in a functional
+--- style: `task` for asynchronous work, and the modules that grew out of the
+--- plugins that use them (processes, HTTP, documents, redraws). The
+--- vocabulary they are written in, |cds.fp| for lists and |cds.result| for
+--- the Result convention, is the cds-lua-fp rock (|cds-lua-fp|), which this
+--- library depends on; |cds.needs|, from the same rock, is how a plugin takes
+--- both: it declares the functions it calls, and the check at startup names
+--- what the libraries installed lack. Each module is pure Lua that names no
+--- plugin; every function answers `value` or `nil, err`, and `nil` alone
+--- means failure.
+---
+--- This manual covers the modules the plugins call in common. The rest (the
+--- document readers, OAuth, processes, dates) are documented in their source,
+--- which the language server shows on hover, and on the reference site.
+---
+---@toc
+
+---@tag cds.task
+---@toc_entry Tasks
+---@text
+--- A Task is a lazy asynchronous result over vim.async: a recipe, so nothing
+--- runs until |cds.Task:run()|, and a pipeline can be built, combined and
+--- handed around as a value. Composition passes one value and one error, in
+--- the Result convention; nil and false are valid successes. >lua
+---
+---   local Task = require("cds.task")
+---   Task.new(function()
+---     return http.request({ method = "GET", url = url })
+---   end)
+---     :bind_result(parse)
+---     :map_err(function(err) return "the index: " .. err.message end)
+---     :run()
+--- <
+
 local async = require("cds.async")
 ---@class cds.Task
----@field private evaluate fun(): any, any
+---@field package evaluate fun(): any, any   -- read by the combinators, in this file only
 local Task = {}
 Task.__index = Task
 
---- fn may yield and returns (value, err). Exceptions become errors at run.
+--- Makes a Task of fn, which may yield and returns (value, err). Exceptions
+--- become errors at run.
 ---@param fn fun(): any, any
 ---@return cds.Task
 function Task.new(fn)
   return setmetatable({ evaluate = fn }, Task)
 end
 
+--- Makes a Task that answers `value`.
 ---@param value any
 ---@return cds.Task
 function Task.of(value)
@@ -21,6 +57,7 @@ function Task.of(value)
   end)
 end
 
+--- Makes a Task that fails with `err`, which must not be nil.
 ---@param err any
 ---@return cds.Task
 function Task.fail(err)
@@ -30,8 +67,8 @@ function Task.fail(err)
   end)
 end
 
---- A Result (value, or nil and err) as a Task: the convention lifted.
---- A refusal must carry its error, as Task.fail requires.
+--- Lifts a Result (value, or nil and err) into a Task. A refusal must carry its
+--- error, as Task.fail requires.
 ---@param value any
 ---@param err any
 ---@return cds.Task
@@ -42,6 +79,8 @@ function Task.of_result(value, err)
   return Task.of(value)
 end
 
+--- Passes the value through `fn`, which answers the Task to go on with; an
+--- error passes through untouched.
 ---@param fn fun(value: any): cds.Task
 ---@return cds.Task
 function Task:bind(fn)
@@ -54,8 +93,8 @@ function Task:bind(fn)
   end)
 end
 
---- Bind a step written in the Result convention: fn answers a value, or
---- nil and its error, and the task fails with that error.
+--- Binds a step written in the Result convention: fn answers a value, or nil
+--- and its error, and the task fails with that error.
 ---@param fn fun(value: any): any, any
 ---@return cds.Task
 function Task:bind_result(fn)
@@ -64,6 +103,8 @@ function Task:bind_result(fn)
   end)
 end
 
+--- Passes the value through `fn`, which always answers; an error passes through
+--- untouched.
 ---@param fn fun(value: any): any
 ---@return cds.Task
 function Task:map(fn)
@@ -72,7 +113,7 @@ function Task:map(fn)
   end)
 end
 
---- Run fn for its effect and pass the value on unchanged. A step that
+--- Runs fn for its effect and passes the value on unchanged: a step that
 --- records or reports what flowed through it, without a map that has to
 --- remember to return its input.
 ---@param fn fun(value: any)
@@ -84,9 +125,9 @@ function Task:tap(fn)
   end)
 end
 
---- Pass the value on when pred holds for it; otherwise fail. `reason` is the
---- error, or a function of the value that builds it, for the message that
---- wants to quote what was wrong.
+--- Passes the value on when pred holds for it; otherwise fails. `reason` is the
+--- error, or a function of the value that builds it, for the message that wants
+--- to quote what was wrong.
 ---@param pred fun(value: any): boolean
 ---@param reason any|fun(value: any): any
 ---@return cds.Task
@@ -99,9 +140,9 @@ function Task:ensure(pred, reason)
   end)
 end
 
---- The error through fn; a value passes untouched. The step that describes
---- a failure for the reader (what was being fetched, where it was met)
---- without a recover that fails again. Exceptions are not yet errors here;
+--- Passes the error through fn; a value passes untouched. This is the step that
+--- describes a failure for the reader (what was being fetched, where it was
+--- met) without a recover that fails again. Exceptions are not yet errors here;
 --- recover is the combinator that catches them.
 ---@param fn fun(err: any): any
 ---@return cds.Task
@@ -115,8 +156,10 @@ function Task:map_err(fn)
   end)
 end
 
--- Recovery also catches exceptions, inside the child rather than its awaiter:
--- an uncaught vim.async child failure can cancel its siblings.
+--- Passes the error through `fn`, which answers the Task to go on with; a value
+--- passes through untouched. Recovery also catches exceptions, inside the child
+--- rather than its awaiter: an uncaught vim.async child failure can cancel its
+--- siblings.
 ---@param fn fun(err: any): cds.Task
 ---@return cds.Task
 function Task:recover(fn)
@@ -132,7 +175,7 @@ function Task:recover(fn)
   end)
 end
 
---- Resume composition on Neovim's main loop after a fast-event producer.
+--- Resumes composition on Neovim's main loop after a fast-event producer.
 ---@return cds.Task
 function Task:on_main()
   return Task.new(function()
@@ -144,7 +187,8 @@ function Task:on_main()
   end)
 end
 
---- Evaluate while holding an existing semaphore, shared across the batch.
+--- Evaluates while holding an existing semaphore, shared across the batch.
+---@param semaphore vim.async.Semaphore
 ---@return cds.Task
 function Task:limited(semaphore)
   return Task.new(function()
@@ -152,7 +196,7 @@ function Task:limited(semaphore)
   end)
 end
 
---- Time a successful result. limited(...):timed() includes queue time;
+--- Times a successful result. limited(...):timed() includes queue time;
 --- timed():limited(...) measures only the time after acquiring the permit.
 --- Errors retain their original error channel.
 ---@param now? fun(): number Nanoseconds; injectable for deterministic checks.
@@ -207,4 +251,4 @@ function Task.all(tasks)
   end)
 end
 
-return require("cds.module")("task", Task)
+return require("cds.module").wrap("task", Task)

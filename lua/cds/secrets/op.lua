@@ -1,9 +1,11 @@
--- The 1Password CLI. One item per secret, titled "<service>-<name>", category
--- PASSWORD, value in the `password` field. Writes send the item as a JSON
--- template on stdin (the `-` argument); `op` refuses `--template=/dev/stdin`.
--- Every failure exits 1, so absence is recognised from the message text.
+-- Reads and writes 1Password through its CLI, `op`: one item per secret,
+-- titled "<service>-<name>", category PASSWORD, value in the `password`
+-- field. Writes send the item as a JSON template on stdin (the `-` argument);
+-- `op` refuses `--template=/dev/stdin`. Every failure exits 1, so absence is
+-- recognised from the message text.
 local proc = require("cds.proc")
 
+---@class cds.secrets.op
 local M = {}
 
 -- op 2.39 words absence two ways: `read` and `delete` say `"<title>" isn't an
@@ -99,4 +101,4 @@ function M.open(spec)
   return store
 end
 
-return require("cds.module")("secrets.op", M)
+return require("cds.module").wrap("secrets.op", M)

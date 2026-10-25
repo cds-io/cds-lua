@@ -1,10 +1,10 @@
--- The scan of a report's HTML into tokens: a tag with the few attributes
--- the reader uses, or the text between tags with its entities decoded and
--- its whitespace as written (`pre` needs it). The generators write
--- well-formed trees, so this is a scan for tags, not a parser that
--- repairs. Plain strings in, plain tables out.
+-- Scans a report's HTML into tokens: a tag with the few attributes the reader
+-- uses, or the text between tags with its entities decoded and its whitespace
+-- as written (`pre` needs it). The generators write well-formed trees, so
+-- this scans for tags and repairs nothing.
 local fp = require("cds.fp")
 
+---@class cds.html.tokens
 local M = {}
 
 ---@class cds.html.Token
@@ -40,7 +40,7 @@ local VALUE_FORMS = {
   "([%w%-]+)%s*=%s*([^%s\"'][^%s>]*)",
 }
 
---- A code point as UTF-8 (Lua 5.1 has no utf8 library).
+--- Encodes a code point as UTF-8 (Lua 5.1 has no utf8 library).
 ---@param code integer
 ---@return string
 local function utf8(code)
@@ -59,15 +59,15 @@ local function utf8(code)
   )
 end
 
---- The text with its entities decoded: the named ones above, `&#NNN;` and
---- `&#xHH;`; a non-breaking space is a space.
+--- Decodes the text's entities: the named ones above, `&#NNN;` and `&#xHH;`; a
+--- non-breaking space becomes a space.
 ---@param s string
 ---@return string
 function M.decode(s)
   return (
     s:gsub("&(#?x?)(%w+);", function(form, body)
       if form == "#" then
-        return body:match("^%d+$") and utf8(tonumber(body)) or nil
+        return body:match("^%d+$") and utf8(assert(tonumber(body))) or nil
       elseif form == "#x" then
         return body:match("^%x+$") and utf8(tonumber(body, 16)) or nil
       end
@@ -76,14 +76,15 @@ function M.decode(s)
   )
 end
 
---- Whitespace runs to one space, the ends trimmed.
+--- Folds whitespace runs to one space and trims the ends.
 ---@param s string
 ---@return string
 function M.squash(s)
   return (s:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", ""))
 end
 
---- The attributes of a tag's inside (`a href="x" class=y`), those kept.
+--- Reads the attributes of a tag's inside (`a href="x" class=y`), keeping those
+--- the reader uses.
 ---@param inside string
 ---@return table<string, string>
 local function attributes(inside)
@@ -99,9 +100,9 @@ local function attributes(inside)
   return attrs
 end
 
---- The tokens of a report. Comments, and `script` and `style` with their
---- contents, are skipped whole. A tag may span lines; the token's line is
---- where it starts.
+--- Scans a report into tokens. Comments, and `script` and `style` with their
+--- contents, are skipped whole. A tag may span lines; the token's line is where
+--- it starts.
 ---@param lines string[]
 ---@return cds.html.Token[]
 function M.tokens(lines)
@@ -182,4 +183,4 @@ function M.tokens(lines)
   return tokens
 end
 
-return require("cds.module")("html.tokens", M)
+return require("cds.module").wrap("html.tokens", M)

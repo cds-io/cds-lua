@@ -1,10 +1,11 @@
--- An append-only log file: one JSON object per line, always starting with the
+-- Appends to a log file, one JSON object per line, each starting with the
 -- time, the level and the event name so a line reads left to right before it
 -- is parsed. Writes are synchronous and go through vim.uv alone, so a record
 -- can be written from any context, a libuv callback included.
 --
 -- The logger records what it is given. Keeping secrets out is the caller's
 -- job: pass names and outcomes, never headers, bodies or tokens.
+---@class cds.log
 local M = {}
 
 local LEVELS = { off = 0, info = 1, debug = 2 }
@@ -65,7 +66,8 @@ function Log:debug(event, fields)
   return self:write("debug", event, fields)
 end
 
---- Call this on the main loop: it creates the directory with vim.fn.
+--- Opens a logger. Call this on the main loop: it creates the directory with
+--- vim.fn.
 ---@param opts { path: string, level: "off"|"info"|"debug"? }
 ---@return cds.Log
 function M.new(opts)
@@ -76,4 +78,4 @@ function M.new(opts)
   return setmetatable({ path = opts.path, level = level }, Log)
 end
 
-return require("cds.module")("log", M)
+return require("cds.module").wrap("log", M)

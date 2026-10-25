@@ -10,6 +10,7 @@
 --
 -- bpaf parses a command line into values; this renders values into one. The
 -- direction is reversed and the structure is the same.
+---@class cds.argv
 local M = {}
 
 ---@class cds.argv.Value
@@ -18,8 +19,8 @@ local M = {}
 local Value = {}
 Value.__index = Value
 
---- A named value with no steps yet. Steps return a new value, so a value can
---- be shared and extended without affecting its other users.
+--- Makes a named value with no steps yet. Steps return a new value, so a value
+--- can be shared and extended without affecting its other users.
 ---@param name string   -- used in messages: "invalid <name>: <input>"
 ---@return cds.argv.Value
 function M.value(name)
@@ -33,14 +34,15 @@ function Value:with(step)
   return setmetatable({ name = self.name, steps = steps }, Value)
 end
 
---- Transform the value.
+--- Transforms the value.
 ---@param fn fun(v: any): any
 ---@return cds.argv.Value
 function Value:map(fn)
   return self:with({ map = fn })
 end
 
---- Require a condition. `message` is the whole error, or a function of the value.
+--- Requires a condition. `message` is the whole error, or a function of the
+--- value.
 ---@param pred fun(v: any): boolean
 ---@param message string|fun(v: any): string
 ---@return cds.argv.Value
@@ -48,7 +50,7 @@ function Value:guard(pred, message)
   return self:with({ guard = pred, message = message })
 end
 
---- Convert the value, or refuse it: `fn` returns the new value, or nil to
+--- Converts the value, or refuses it: `fn` returns the new value, or nil to
 --- fail with "invalid <name>: <input>".
 ---@param fn fun(v: any): any?
 ---@return cds.argv.Value
@@ -56,7 +58,7 @@ function Value:parse(fn)
   return self:with({ parse = fn })
 end
 
---- Run the steps on `input`. The result is always text without a NUL byte,
+--- Runs the steps on `input`. The result is always text without a NUL byte,
 --- whatever the steps allowed: argv entries are C strings, so an embedded NUL
 --- cannot be part of one. (Passed anyway, the value arrives cut short at the
 --- NUL with no error: "nul\0byte" reached osascript as "nul".)
@@ -105,7 +107,7 @@ end
 -- C0 controls (NUL, tab and newline among them) and DEL.
 local CONTROL = "[%z\1-\31\127]"
 
---- No control characters.
+--- Whether the text has no control characters.
 ---@param v any
 ---@return boolean
 function M.printable(v)
@@ -116,7 +118,7 @@ end
 -- span lines must not carry.
 local CONTROL_EXCEPT_LINES = "[%z\1-\8\11\12\14-\31\127]"
 
---- No control characters except newlines and tabs.
+--- Whether the text has no control characters except newlines and tabs.
 ---@param v any
 ---@return boolean
 function M.printable_lines(v)
@@ -133,14 +135,14 @@ end
 
 -- Maps -------------------------------------------------------------------------
 
---- Each control character becomes one space.
+--- Replaces each control character with one space.
 ---@param v string
 ---@return string
 function M.spaces_for_control(v)
   return (v:gsub(CONTROL, " "))
 end
 
---- The same, keeping newlines and tabs.
+--- Replaces each control character with one space, keeping newlines and tabs.
 ---@param v string
 ---@return string
 function M.spaces_for_control_except_lines(v)
@@ -149,7 +151,7 @@ end
 
 -- Parsers ----------------------------------------------------------------------
 
---- A whole number within [lo, hi], rendered in decimal.
+--- Accepts a whole number within [lo, hi], rendered in decimal.
 ---@param lo integer
 ---@param hi integer
 ---@return fun(v: any): string?
@@ -162,7 +164,7 @@ function M.integer(lo, hi)
   end
 end
 
---- true or false, and nothing else.
+--- Accepts true or false, and nothing else.
 ---@param v any
 ---@return string?
 function M.boolean(v)
@@ -179,17 +181,17 @@ end
 local Positional = {}
 Positional.__index = Positional
 
---- An ordered list of values, rendered all or nothing.
+--- Makes an ordered list of values, rendered all or nothing.
 ---@param values cds.argv.Value[]
 ---@return cds.argv.Positional
 function M.positional(values)
   return setmetatable({ values = vim.list_extend({}, values) }, Positional)
 end
 
---- One input per value, in order. An input may be nil (its value's steps
---- decide what that means); set `inputs.n` when the last one might be, since
---- a Lua list cannot show a trailing nil.
----@param inputs any[]
+--- Renders one input per value, in order. An input may be nil (its value's
+--- steps decide what that means); set `inputs.n` when the last one might be,
+--- since a Lua list cannot show a trailing nil.
+---@param inputs { [integer]: any, n: integer? }
 ---@return string[]? args
 ---@return string? err   -- the first value that failed
 function Positional:render(inputs)
@@ -208,9 +210,10 @@ function Positional:render(inputs)
   return args
 end
 
---- The full argv: `fixed`, then "--", then `values`. The separator ends the
---- program's option parsing, so a value that begins with a dash stays a value.
---- Neither list is inspected: `values` should be what a `render` returned.
+--- Builds the full argv: `fixed`, then "--", then `values`. The separator ends
+--- the program's option parsing, so a value that begins with a dash stays a
+--- value. Neither list is inspected: `values` should be what a `render`
+--- returned.
 ---@param fixed string[]    -- the program and its own options
 ---@param values string[]   -- rendered values
 ---@return string[]
@@ -220,4 +223,4 @@ function M.command(fixed, values)
   return vim.list_extend(argv, values)
 end
 
-return require("cds.module")("argv", M)
+return require("cds.module").wrap("argv", M)

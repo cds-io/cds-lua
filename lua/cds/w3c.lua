@@ -1,13 +1,16 @@
--- The W3C technical reports index (www.w3.org/TR), read: one entry per
--- shortname with the facts the page lists, and the times the plugin
--- compares, an index date against a report's Last-Modified. Plain lines
--- in, plain tables out; nothing here names the editor.
+-- Reads the W3C technical reports index (www.w3.org/TR): `index` answers one
+-- entry per shortname with the facts the page lists, and `short_group` writes
+-- a working group's name the W3C's own short way. `date_time`,
+-- `parse_http_time` and `http_time` convert the dates the plugin compares, an
+-- index date against a report's Last-Modified header. Every function takes
+-- strings and answers tables, so the specs run under plain busted.
 local html = require("cds.html")
 local tree = require("cds.html.tree")
 local fp = require("cds.fp")
 
 local plain, classes, find_all = tree.plain, tree.classes, tree.find_all
 
+---@class cds.w3c
 local M = {}
 
 ---@class cds.w3c.Entry
@@ -20,7 +23,8 @@ local M = {}
 ---@field tags string[]
 ---@field groups string[]
 
---- One entry from one `div.tr-list__item`, or nil when it names no report.
+--- Reads one entry from one `div.tr-list__item`, or nil when it names no
+--- report.
 ---@param item table
 ---@return cds.w3c.Entry|nil
 local function entry(item)
@@ -84,7 +88,7 @@ local function entry(item)
   }
 end
 
---- The index: one entry per shortname, the first of a duplicate winning.
+--- Reads the index: one entry per shortname, the first of a duplicate winning.
 ---@param lines string[]
 ---@return cds.w3c.Entry[]
 function M.index(lines)
@@ -111,15 +115,15 @@ for i, m in ipairs(MONTHS) do
 end
 local DAYS = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
 
---- A UTC date-time table as seconds since the epoch. os.time reads a
---- table as local time; the zone's offset at that very time (daylight
---- saving included) is taken from the round trip through os.date.
+--- Converts a UTC date-time table to seconds since the epoch. os.time reads a
+--- table as local time; the zone's offset at that very time (daylight saving
+--- included) is taken from the round trip through os.date.
 ---@param t table   -- year, month, day, hour, min, sec
 ---@return integer
 local function utc_time(t)
   t.isdst = false
   local guess = os.time(t)
-  local back = os.date("!*t", guess)
+  local back = os.date("!*t", guess) --[[@as osdate]]
   back.isdst = false
   return guess + (os.time(t) - os.time(back))
 end
@@ -132,9 +136,9 @@ local GROUP_KINDS = {
   { " Business Group$", " BG" },
 }
 
---- A group's name with its kind as the W3C's own shorthand (Cascading
---- Style Sheets (CSS) WG); a name of another shape (Advisory Board,
---- Technical Architecture Group) as written.
+--- Shortens a group's kind the W3C's own way: "Cascading Style Sheets (CSS)
+--- Working Group" becomes "Cascading Style Sheets (CSS) WG"; a name of another
+--- shape (Advisory Board, Technical Architecture Group) stays as written.
 ---@param name string
 ---@return string
 function M.short_group(name)
@@ -147,7 +151,7 @@ function M.short_group(name)
   return name
 end
 
---- Seconds since the epoch at noon UTC of an index date.
+--- Converts an index date to seconds since the epoch at noon UTC.
 ---@param date string   -- YYYY-MM-DD
 ---@return integer
 function M.date_time(date)
@@ -155,7 +159,7 @@ function M.date_time(date)
   return utc_time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 12, min = 0, sec = 0 })
 end
 
---- An HTTP date ("Mon, 04 Dec 2023 05:07:44 GMT") as seconds since the
+--- Reads an HTTP date ("Mon, 04 Dec 2023 05:07:44 GMT") as seconds since the
 --- epoch, or nil when it does not read.
 ---@param s string
 ---@return integer|nil
@@ -174,7 +178,7 @@ function M.parse_http_time(s)
   })
 end
 
---- Seconds since the epoch as an HTTP date.
+--- Writes seconds since the epoch as an HTTP date.
 ---@param t integer
 ---@return string
 function M.http_time(t)
@@ -190,4 +194,4 @@ function M.http_time(t)
   )
 end
 
-return require("cds.module")("w3c", M)
+return require("cds.module").wrap("w3c", M)
