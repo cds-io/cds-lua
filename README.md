@@ -14,6 +14,18 @@ not have fails at the call, in words, naming the module and the key.
 
 This is a learning journey, written in the open. Expect the shape to change.
 
+`:help cds-lua` is the manual: how a plugin takes the library, the Result
+convention, the fallback for a missing name, and the modules the plugins call
+in common (`fp`, `result`, `task`, `async`, `http`, `redraw`, `activity`). It
+is generated from the annotation blocks in the source by
+[mini.doc](https://github.com/nvim-mini/mini.doc) (`make doc`), and `make
+check` refuses a stale copy. The reference site,
+[cds-io.github.io/cds-lua](https://cds-io.github.io/cds-lua/), has one page
+per module, every module, from the same annotations through the language
+server (`make site`), published on each push to main.
+
 ```
-make check     # the specs, inside Neovim; stylua; luacheck
+make check     # the specs, inside Neovim; stylua; luacheck; the type check; the help file
+make doc       # doc/cds-lua.txt
+make site      # site/modules/*.md, the reference site's pages
 ```

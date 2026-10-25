@@ -4,7 +4,7 @@ NVIM ?= nvim
 # mini.nvim lazy installed, which carries it.
 MINIDOC ?= $(firstword $(wildcard ../mini.doc $(HOME)/.local/share/nvim/lazy/mini.doc $(HOME)/.local/share/nvim/lazy/mini.nvim))
 
-.PHONY: all check test lint typecheck doc doc-check
+.PHONY: all check test lint typecheck doc doc-check site
 
 all: check
 
@@ -22,10 +22,16 @@ lint: ## stylua, luacheck and the language server's type check
 	$(MAKE) typecheck
 
 # lua-language-server over lua/, with Neovim's runtime types in the library
-# (the script asks the running Neovim for them). The binary is LUALS, or the
-# first of PATH and Mason's install that has one.
+# (spec/luals.lua asks the running Neovim for them). The binary is LUALS, or
+# the first of PATH and Mason's install that has one.
 typecheck: ## lua-language-server --check, warnings fail
 	$(NVIM) --headless -u NONE -i NONE -l spec/typecheck.lua
+
+# The reference site's module pages, from the language server's export of the
+# annotations; the Pages workflow builds site/ with Jekyll on every push to
+# main. site/modules/ is generated and stays out of git.
+site: ## site/modules/*.md, one page per module
+	$(NVIM) --headless -u NONE -i NONE -l spec/site.lua
 
 # The help file, generated in place; the tags file it leaves behind is
 # ignored, since the plugin manager builds it on install.
