@@ -4,7 +4,10 @@ Build Neovim plugins that fetch data, handle failures, and refresh buffers
 without repeating asynchronous plumbing. `task` composes requests, parsing,
 and recovery before starting work; `http` separates transport failures from
 HTTP responses; `redraw` preserves the selected item when a listing changes;
-`activity` shows running operations in a statusline.
+`activity` shows running operations in a statusline; `pick` owns a keyed floating
+selector, including focus restoration and teardown. `persist` handles atomic
+file/JSON writes, `scratch` owns persistent buffer/window views, and `command`
+composes argument reading, work, presentation, and error reporting.
 
 Use only the modules you need. The list and Result helpers, and the startup
 API check, live in [cds-lua-fp](https://github.com/cds-io/cds-lua-fp).

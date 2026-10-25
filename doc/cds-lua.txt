@@ -65,6 +65,10 @@ including OAuth, secrets, and processes.
   Callback and native Task interop ............................... |cds.async|
   HTTP through curl ............................................... |cds.http|
   Preserving selection on refresh ............................... |cds.redraw|
+  Keyed floating selection ........................................ |cds.pick|
+  File and JSON persistence .................................... |cds.persist|
+  Persistent scratch views ..................................... |cds.scratch|
+  Command orchestration ........................................ |cds.command|
   Tracking running work ....................................... |cds.activity|
   Calendar arithmetic and formatting .......................... |cds.datetime|
   Displaying inline images ...................................... |cds.images|
@@ -576,6 +580,270 @@ Parameters ~
 {keep} `(optional)` `(cds.redraw.Keep)`
 Return ~
 `(integer[])` wins
+
+
+==============================================================================
+                                                                      *cds.pick*
+Select from a short list without putting window ownership, mappings and
+teardown in each plugin. The caller supplies items and their presentation;
+pick owns the temporary buffer and settles exactly once, including when
+the user leaves or closes the window. The callback runs on the next main
+loop turn, after teardown. Cancellation answers nil.
+
+>lua
+  require("cds.pick").select({ "Local", "Mainnet" }, {
+    title = " Network ",
+  }, function(item)
+    if item then vim.notify("Selected " .. item) end
+  end)
+<
+format_item renders an item; selectable can mark a heading as unselectable.
+A single selectable item settles without opening a window. With more than
+26 items all keys have the same length, so no key shadows another's prefix.
+Escape and Ctrl-C cancel. Leaving the picker cancels without stealing focus.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.pick.Options}
+Fields ~
+{title} `(string?)`
+{format_item} `(optional)` `(fun(item: any): string)`
+{selectable} `(optional)` `(fun(item: any): boolean)`
+{highlight} `(string?)` key highlight group; defaults to Special
+
+------------------------------------------------------------------------------
+Class ~
+{cds.pick.Handle}
+Fields ~
+{buf} `(integer)`
+{win} `(integer)`
+{close} `(fun())` cancel and restore the originating view, once
+
+------------------------------------------------------------------------------
+                                                               *cds.pick.keys()*
+                              `pick.keys`({count})
+Generate prefix-free selection keys in home-row-first order.
+Parameters ~
+{count} `(integer)`
+Return ~
+`(string[])`
+
+------------------------------------------------------------------------------
+                                                             *cds.pick.select()*
+                   `pick.select`({items}, {opts}, {callback})
+Show items in a temporary centered float. Returns its handles when a
+window is opened; empty or singleton selections only schedule the callback.
+Parameters ~
+{items} `(any[])`
+{opts} `(cds.pick.Options)`
+{callback} `(fun(item: any?))`
+Return ~
+`(cds.pick.Handle?)`
+
+
+==============================================================================
+                                                                   *cds.persist*
+Read and write plugin state without owning the caller's model or save
+schedule. Every operation returns a value or nil, err. Writes create parent
+directories and replace the destination through a temporary file beside it,
+so an encoding or write failure leaves the previous file intact.
+
+>lua
+  local persist = require("cds.persist")
+  local path = vim.fn.stdpath("data") .. "/example/settings.json"
+  local ok, err = persist.save_json(path, { enabled = true })
+  if not ok then vim.notify(err, vim.log.levels.ERROR) end
+  local settings, read_err = persist.load_json(path)
+<
+Missing or malformed files are errors; the plugin chooses its fallback.
+JSON may decode to any JSON value, including false: callers validate their
+own schema. These functions perform synchronous local file I/O.
+
+------------------------------------------------------------------------------
+                                                            *cds.persist.read()*
+                             `persist.read`({path})
+Read the complete file as bytes.
+Parameters ~
+{path} `(string)`
+Return ~
+`(string?)` content
+`(string?)` err
+
+------------------------------------------------------------------------------
+                                                           *cds.persist.write()*
+                       `persist.write`({path}, {content})
+Atomically replace a file's contents. Parent directories are created.
+Parameters ~
+{path} `(string)`
+{content} `(string)`
+Return ~
+`(true?)` saved
+`(string?)` err
+
+------------------------------------------------------------------------------
+                                                       *cds.persist.save_json()*
+                      `persist.save_json`({path}, {value})
+Encode before touching disk, then atomically save the JSON value.
+Parameters ~
+{path} `(string)`
+{value} `(any)`
+Return ~
+`(true?)` saved
+`(string?)` err
+
+------------------------------------------------------------------------------
+                                                       *cds.persist.load_json()*
+                          `persist.load_json`({path})
+Load a JSON value; schema validation belongs to the caller.
+Parameters ~
+{path} `(string)`
+Return ~
+`(any)` value
+`(string?)` err
+
+
+==============================================================================
+                                                                   *cds.scratch*
+Own a scratch buffer and the window displaying it. Hiding retains its
+contents; wiping it invalidates the handle and the next open recreates it.
+A window that has switched to another buffer is no longer owned. Reopening
+an existing view focuses it instead of creating another split.
+
+>lua
+  local view = require("cds.scratch").new({
+    name = "[Example Results]", filetype = "markdown",
+    on_create = function(buf)
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Results" })
+    end,
+  })
+  view:open({ kind = "vsplit", size = 0.5 })
+  view:toggle() -- hide; a later toggle shows the same buffer
+<
+Content, folds and keymaps belong to the caller's hooks. on_show is also
+called when the buffer is displayed by native editor commands. No global
+mappings or commands are installed by a view. destroy releases the buffer
+and detaches windows displaying it. Other views are independent.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.scratch.Options}
+Fields ~
+{name} `(string)`
+{filetype} `(string?)`
+{on_create} `(optional)` `(fun(buf: integer))`
+{on_show} `(optional)` `(fun(buf: integer, win: integer))`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.scratch.Open}
+Fields ~
+{kind} `(optional)` `("split"|"vsplit"|"tab"|"float")`
+{size} `(number?)` split rows/columns, or a fraction of editor dimensions
+{float} `(table<string, any>?)` nvim_open_win options; function values are evaluated at open
+
+------------------------------------------------------------------------------
+Class ~
+{cds.Scratch}
+Fields ~
+{buf} `(integer?)`
+{win} `(integer?)`
+{opts} `(cds.scratch.Options)`
+{last} `(cds.scratch.Open)`
+
+------------------------------------------------------------------------------
+                                                             *cds.scratch.new()*
+                             `scratch.new`({opts})
+Make an independent, lazy view. No buffer or window is created yet.
+Parameters ~
+{opts} `(cds.scratch.Options)`
+Return ~
+`(cds.Scratch)`
+
+------------------------------------------------------------------------------
+                                                          *cds.Scratch:buffer()*
+                               `Scratch:buffer`()
+Get or create the owned buffer.
+Return ~
+`(integer)`
+
+------------------------------------------------------------------------------
+                                                          *cds.Scratch:window()*
+                               `Scratch:window`()
+Find a window still displaying the owned buffer.
+Return ~
+`(integer?)` win
+
+------------------------------------------------------------------------------
+                                                            *cds.Scratch:open()*
+                             `Scratch:open`({opts})
+Show the buffer or focus its existing window. Float dimensions are
+evaluated on each open; split dimensions are clamped to the editor.
+Parameters ~
+{opts} `(optional)` `(cds.scratch.Open)`
+Return ~
+`(integer)` win
+
+------------------------------------------------------------------------------
+                                                            *cds.Scratch:hide()*
+                                `Scratch:hide`()
+Hide the owned window, preserving the buffer and its text.
+
+------------------------------------------------------------------------------
+                                                          *cds.Scratch:toggle()*
+                            `Scratch:toggle`({opts})
+Hide an open view or reopen it with the supplied/last layout.
+Parameters ~
+{opts} `(optional)` `(cds.scratch.Open)`
+
+------------------------------------------------------------------------------
+                                                         *cds.Scratch:destroy()*
+                              `Scratch:destroy`()
+Release the owned buffer and its associated buffer-local autocmds.
+
+
+==============================================================================
+                                                                   *cds.command*
+Declare a command's argument reader, work and presentation together.
+register installs commands and optional keys; the shared boundary reports
+returned errors and exceptions once. read runs at invocation, so the caller
+can capture buffer identity and cursor position before asynchronous work.
+
+>lua
+  require("cds.command").register({ {
+    name = "ExampleCount", desc = "Count current buffer lines", keys = { "<leader>ec" },
+    read = function() return vim.api.nvim_get_current_buf() end,
+    run = function(buf) return vim.api.nvim_buf_line_count(buf) end,
+    present = function(count) vim.notify(tostring(count)) end,
+  } })
+<
+run returns value, err; only a non-nil error slot means failure, so actions
+returning nothing and values such as false work too. async=true runs work
+as a cds Task and schedules presentation after completion. Each invocation
+captures its own input. Command-specific validation and confirmation stay
+in the caller. Re-registering a command replaces its definition and keys.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.command.Spec}
+Fields ~
+{name} `(string)`
+{run} `(fun(input: any): any, any)`
+{read} `(optional)` `(fun(args: vim.api.keyset.create_user_command.command_args): any, any)`
+{present} `(optional)` `(fun(value: any, input: any))`
+{desc} `(string?)`
+{nargs} `(optional)` `(string|integer)`
+{complete} `(optional)` `(string|function)`
+{bang} `(boolean?)`
+{range} `(optional)` `(boolean|integer|string)`
+{keys} `(string[]?)`
+{async} `(boolean?)`
+
+------------------------------------------------------------------------------
+                                                        *cds.command.register()*
+                          `command.register`({specs})
+Register commands with optional normal-mode mappings to their names.
+Parameters ~
+{specs} `(cds.command.Spec[])`
 
 
 ==============================================================================

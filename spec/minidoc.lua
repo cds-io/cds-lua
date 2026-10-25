@@ -11,7 +11,8 @@ require("mini.doc").setup({ silent = true })
 
 -- in the order the manual reads; the vocabulary and the needs check (fp,
 -- result, module, needs) are the cds-lua-fp rock's own manual
-local FILES = { "task", "async", "http", "redraw", "activity", "datetime", "images" }
+local FILES =
+  { "task", "async", "http", "redraw", "pick", "persist", "scratch", "command", "activity", "datetime", "images" }
 
 ---@param block table   -- a mini.doc block: an array of sections
 ---@param id string     -- "@tag"
