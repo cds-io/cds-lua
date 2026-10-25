@@ -2,9 +2,10 @@
 ---@toc_entry HTTP through curl
 ---@text
 --- Every option travels as a config file on curl's stdin (`--config -`),
---- so a bearer token or client secret never appears in argv or in `ps`. An
---- HTTP response of any status returns normally; only a transport failure
---- returns nil plus a classified error.
+--- so a bearer token or client secret never appears in argv or in `ps`.
+--- Transfers are compressed when the server offers it, and the body comes
+--- back decoded. An HTTP response of any status returns normally; only a
+--- transport failure returns nil plus a classified error.
 
 local proc = require("cds.proc")
 
@@ -82,6 +83,10 @@ function M.config(req)
     -- at most; the status and headers are the final response's
     "location",
     "max-redirs = 5",
+    -- the body arrives gzip or brotli encoded when the server offers it (a
+    -- listing page is a fifteenth of its size), and curl decodes it; a
+    -- content-length header, when there is one, names the encoded size
+    "compressed",
     "dump-header = " .. M.quote("-"),
     "max-time = " .. tostring(req.timeout or 30),
     "write-out = " .. M.quote(MARK .. "%{http_code}"),
