@@ -126,13 +126,15 @@ function M.plain(node)
   return table.concat(fp.map(node.children, M.plain), "")
 end
 
---- The first child that answers the test, and the other children in order.
+--- Finds the first child that passes the test and answers it with the other
+--- children in order. The tests given here (`named`, `classed`) answer only for
+--- elements, so what is found is a node.
 ---@param children (cds.html.Node|string)[]
----@param test fun(child: cds.html.Node|string): boolean
+---@param test fun(child: cds.html.Node|string): any
 ---@return cds.html.Node|nil found
 ---@return (cds.html.Node|string)[] rest
 function M.split(children, test)
-  local found = fp.find(children, test)
+  local found = fp.find(children, test) --[[@as cds.html.Node?]]
   local rest = fp.filter(children, function(c)
     return c ~= found
   end)

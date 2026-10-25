@@ -184,12 +184,12 @@ local blocks_of
 ---@param buttons table<string, string>
 ---@return cds.html.Block|nil
 local function figure_of(child, ctx, buttons)
-  local img, caption = child, nil
+  local img, caption = child, nil ---@type cds.html.Node?, string?
   if child.name == "figure" then
     img = fp.find(child.children, function(c)
       return type(c) ~= "string" and (c.name == "img" or c.name == "object")
-    end)
-    local fc = fp.find(child.children, tree.named("figcaption"))
+    end) --[[@as cds.html.Node?]]
+    local fc = fp.find(child.children, tree.named("figcaption")) --[[@as cds.html.Node?]]
     caption = fc and label_of(fc) or nil
   end
   if not img then

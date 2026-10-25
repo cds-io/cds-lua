@@ -9,8 +9,13 @@
 ---@class cds.fp
 local M = {}
 
--- fn(item, index) for each item, in order. A nil result is an error: it would
--- leave a hole, and ipairs would stop reading the list there.
+--- Builds the list of fn(item, index) for each item, in order. A nil result is
+--- an error: it would leave a hole, and ipairs would stop reading the list
+--- there.
+---@generic T, U
+---@param list T[]
+---@param fn fun(item: T, index: integer): U
+---@return U[]
 function M.map(list, fn)
   local out = {}
   for index, item in ipairs(list) do
@@ -23,7 +28,11 @@ function M.map(list, fn)
   return out
 end
 
--- The items for which keep(item, index) is true, in order.
+--- Keeps the items for which keep(item, index) is true, in order.
+---@generic T
+---@param list T[]
+---@param keep fun(item: T, index: integer): any
+---@return T[]
 function M.filter(list, keep)
   local out = {}
   for index, item in ipairs(list) do
@@ -34,9 +43,14 @@ function M.filter(list, keep)
   return out
 end
 
--- Fold the items into one value, left to right: the result of
--- fn(value, item, index) is the value the next item meets, starting from
--- `initial`, which is also what an empty list gives.
+--- Folds the items into one value, left to right: the result of fn(value, item,
+--- index) is the value the next item meets, starting from `initial`, which is
+--- also what an empty list gives.
+---@generic T, A
+---@param list T[]
+---@param initial A
+---@param fn fun(value: A, item: T, index: integer): A
+---@return A
 function M.reduce(list, initial, fn)
   local value = initial
   for index, item in ipairs(list) do
@@ -45,9 +59,14 @@ function M.reduce(list, initial, fn)
   return value
 end
 
--- The first item for which test(item, index) is truthy, and its index; nil
--- when none is. The lists here hold nodes, strings and records, never
--- false, so a falsy answer means no item.
+--- Finds the first item for which test(item, index) is truthy and answers it
+--- with its index; nil when none is. The lists here hold nodes, strings and
+--- records, never false, so a falsy answer means no item.
+---@generic T
+---@param list T[]
+---@param test fun(item: T, index: integer): any
+---@return T? item
+---@return integer? index
 function M.find(list, test)
   for index, item in ipairs(list) do
     if test(item, index) then
@@ -56,9 +75,13 @@ function M.find(list, test)
   end
 end
 
--- The first non-nil fn(item, index), stopping there; nil when every item
--- answers nil. One pass that finds and transforms at once, for a chain of
--- parsers tried in order: the first that reads the line gives the record.
+--- Answers the first non-nil fn(item, index), stopping there; nil when every
+--- item answers nil. One pass that finds and transforms at once, for a chain of
+--- parsers tried in order: the first that reads the line gives the record.
+---@generic T, U
+---@param list T[]
+---@param fn fun(item: T, index: integer): U?
+---@return U?
 function M.find_map(list, fn)
   for index, item in ipairs(list) do
     local found = fn(item, index)
@@ -68,8 +91,12 @@ function M.find_map(list, fn)
   end
 end
 
--- The lists fn(item, index) answers, joined in order: a map whose answers
--- are lists, flattened one level.
+--- Joins the lists fn(item, index) answers, in order: a map whose answers are
+--- lists, flattened one level.
+---@generic T, U
+---@param list T[]
+---@param fn fun(item: T, index: integer): U[]
+---@return U[]
 function M.flat_map(list, fn)
   local out = {}
   for index, item in ipairs(list) do
@@ -80,8 +107,11 @@ function M.flat_map(list, fn)
   return out
 end
 
--- The keys of a table, as a list in no particular order; sort it when the
--- order matters.
+--- Lists the keys of a table, in no particular order; sort it when the order
+--- matters.
+---@generic K
+---@param t table<K, any>
+---@return K[]
 function M.keys(t)
   local out = {}
   for key in pairs(t) do
@@ -90,18 +120,25 @@ function M.keys(t)
   return out
 end
 
--- fn(item, index) for each item, in order, for its effect; the answers are
--- dropped. The counterpart of map where the work is the point: a cursor
--- set in every window showing a buffer.
+--- Calls fn(item, index) for each item, in order, for what it does; the answers
+--- are dropped. Where map builds a list, each performs an action per item: a
+--- cursor set in every window showing a buffer.
+---@generic T
+---@param list T[]
+---@param fn fun(item: T, index: integer)
 function M.each(list, fn)
   for index, item in ipairs(list) do
     fn(item, index)
   end
 end
 
--- Every non-nil fn(item, index), in order. One pass that filters and
--- transforms at once, for a reading that keeps what it can parse: the
--- heading each line carries, for the lines that carry one.
+--- Keeps every non-nil fn(item, index), in order. One pass that filters and
+--- transforms at once, for a reading that keeps what it can parse: the heading
+--- each line carries, for the lines that carry one.
+---@generic T, U
+---@param list T[]
+---@param fn fun(item: T, index: integer): U?
+---@return U[]
 function M.filter_map(list, fn)
   local out = {}
   for index, item in ipairs(list) do
@@ -113,7 +150,11 @@ function M.filter_map(list, fn)
   return out
 end
 
--- Does test(item, index) hold for some item? Stops at the first.
+--- Does test(item, index) hold for some item? Stops at the first.
+---@generic T
+---@param list T[]
+---@param test fun(item: T, index: integer): any
+---@return boolean
 function M.any(list, test)
   for index, item in ipairs(list) do
     if test(item, index) then
@@ -123,8 +164,12 @@ function M.any(list, test)
   return false
 end
 
--- Does test(item, index) hold for every item? Stops at the first that
--- fails; true for an empty list.
+--- Does test(item, index) hold for every item? Stops at the first that
+--- fails; true for an empty list.
+---@generic T
+---@param list T[]
+---@param test fun(item: T, index: integer): any
+---@return boolean
 function M.all(list, test)
   for index, item in ipairs(list) do
     if not test(item, index) then
@@ -134,9 +179,14 @@ function M.all(list, test)
   return true
 end
 
--- The key an item is filed under: key(item, index), or the item itself
--- without a key function. A nil key is an error, naming the item, since Lua
--- would refuse the nil index without saying which item gave it.
+--- Finds the key an item is filed under: key(item, index), or the item itself
+--- without a key function. A nil key is an error, naming the item, since Lua
+--- would refuse the nil index without saying which item gave it.
+---@param name string                               -- the caller, for the message
+---@param key? fun(item: any, index: integer): any
+---@param item any
+---@param index integer
+---@return any
 local function key_of(name, key, item, index)
   -- Spelled out: `key and key(item, index) or item` would fall back to
   -- the item on a nil key, which is the case to refuse.
@@ -150,7 +200,11 @@ local function key_of(name, key, item, index)
   return found
 end
 
--- The items as a set: a table of each one's key to true.
+--- Builds a set of the items: a table of each one's key to true.
+---@generic T
+---@param list T[]
+---@param key? fun(item: T, index: integer): any   -- the item itself without one
+---@return table<any, true>
 function M.set(list, key)
   local out = {}
   for index, item in ipairs(list) do
@@ -159,7 +213,12 @@ function M.set(list, key)
   return out
 end
 
--- The items whose key has not appeared before, in order: the first of each.
+--- Keeps the items whose key has not appeared before, in order: the first of
+--- each.
+---@generic T
+---@param list T[]
+---@param key? fun(item: T, index: integer): any   -- the item itself without one
+---@return T[]
 function M.unique(list, key)
   local seen, out = {}, {}
   for index, item in ipairs(list) do
