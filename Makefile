@@ -18,7 +18,7 @@ lint: ## stylua, luacheck and the language server's type check
 	$(MAKE) typecheck
 
 # lua-language-server over lua/, with Neovim's runtime types in the library
-# (the script asks the running Neovim for them). LUALS names the binary when
-# it is not on PATH, as Mason's is not.
+# (the script asks the running Neovim for them). The binary is LUALS, or the
+# first of PATH and Mason's install that has one.
 typecheck: ## lua-language-server --check, warnings fail
 	$(NVIM) --headless -u NONE -i NONE -l spec/typecheck.lua
