@@ -1,38 +1,154 @@
 ---@tag cds-lua
 ---@text
---- cds-lua is a common library for Neovim plugins written in a functional
---- style: `task` for asynchronous work, and the modules that grew out of the
---- plugins that use them (processes, HTTP, OAuth, redraws). The
---- vocabulary they are written in, |cds.fp| for lists and |cds.result| for
---- the Result convention, is the cds-lua-fp rock (|cds-lua-fp|), which this
---- library depends on; |cds.needs|, from the same rock, is how a plugin takes
---- both: it declares the functions it calls, and the check at startup names
---- what the libraries installed lack. Each module is pure Lua that names no
---- plugin; every function answers `value` or `nil, err`, and `nil` alone
---- means failure.
+--- cds-lua helps Neovim plugin authors fetch data, handle failures, and
+--- refresh the editor without repeating the same asynchronous plumbing.
+--- Tasks let you compose a request, validation, parsing, and recovery before
+--- starting the work. HTTP keeps transport errors separate from response
+--- statuses. Redraw preserves the selected item when rows move, and activity
+--- turns running work into a statusline segment.
 ---
---- This manual covers the modules the plugins call in common. The rest
---- (OAuth, secrets, processes, dates, images) are documented in their source,
---- which the language server shows on hover, and on the reference site.
+--- Use the modules you need. The pure Lua list and Result helpers live in
+--- cds-lua-fp (|cds-lua-fp|), a dependency that also supplies |cds.needs| for
+--- checking required APIs before a plugin starts.
+---
+--- Requirements and setup ~
+--- The asynchronous modules require Neovim 0.13+ with vim.async available;
+--- HTTP also requires curl on PATH. With lazy.nvim, declare both libraries
+--- explicitly so the vocabulary is available when cds-lua loads: >lua
+---
+---   return {
+---     "cds-io/cds-lua",
+---     lazy = true,
+---     dependencies = { { "cds-io/cds-lua-fp", lazy = true } },
+---   }
+--- <
+--- For a plugin you distribute, put this library spec in your plugin's
+--- dependencies. Other managers must put both libraries on the runtimepath.
+---
+--- Check the APIs your plugin uses before registering commands. A declaration
+--- can live in lua/example/needs.lua; this self-contained startup check uses
+--- the same table directly: >lua
+---
+---   local ok, needs = pcall(require, "cds.needs")
+---   if not ok then
+---     vim.notify("example.nvim: install cds-io/cds-lua-fp", vim.log.levels.ERROR)
+---     return
+---   end
+---   local problem = needs.check("example.nvim", {
+---     task = { "new" },
+---     http = { "request", "status" },
+---   })
+---   if problem then
+---     vim.notify(problem, vim.log.levels.ERROR)
+---     return
+---   end
+---   -- Register the plugin's commands here.
+--- <
+--- This checks that names exist, not their signatures or behavior. Functions
+--- keep their contracts under their names; different contracts get new names.
+--- The check complements your plugin's tests and dependency constraints.
+---
+--- Values and errors ~
+--- Result-returning functions use value or nil, err: nil in the first slot
+--- means failure, false is a valid value, and failures should carry an error.
+--- Task composition instead tests the error slot: a non-nil error is failure;
+--- nil and false can both be successful Task values. Task.of_result and
+--- Task:bind_result adapt the Result convention, so they require a non-nil
+--- success value. Procedures such as redraw.restore return no result.
+---
+--- Start with the complete example under |cds.task|, then use the module
+--- recipes below. This manual covers task, async, HTTP, redraw, and activity.
+--- The reference site https://cds-io.github.io/cds-lua/ covers every module,
+--- including OAuth, secrets, processes, dates, and images.
 ---
 ---@toc
 
 ---@tag cds.task
 ---@toc_entry Tasks
 ---@text
---- A Task is a lazy asynchronous result over vim.async: a recipe, so nothing
---- runs until |cds.Task:run()|, and a pipeline can be built, combined and
---- handed around as a value. Composition passes one value and one error, in
---- the Result convention; nil and false are valid successes. >lua
+--- A Task describes asynchronous work without starting it. Build a pipeline
+--- once, add validation or recovery, then call run to start a fresh execution.
+--- This keeps the request and its error handling together instead of spreading
+--- them across callbacks. Tasks wrap vim.async; run returns its native handle.
+---
+--- Fetch JSON into a scratch buffer ~
+--- Run this after installing the dependencies above. It fetches an example
+--- JSON document, rejects non-200 responses, decodes the body, and displays it.
+--- Transport errors are tables; parser errors here are strings. Normalize them
+--- before adding context, rather than assuming every error has a message field.
+--- >lua
+---   local Task = require("cds.task")
+---   local http = require("cds.http")
+---
+---   local function parse_json(response)
+---     local ok, value = pcall(vim.json.decode, response.body)
+---     if not ok then
+---       return nil, "invalid JSON: " .. tostring(value)
+---     end
+---     return value
+---   end
+---
+---   local fetch = Task.new(function()
+---     return http.request({ method = "GET", url = "https://httpbin.org/json" })
+---   end)
+---     :ensure(function(response) return response.status == http.status.OK end,
+---       function(response) return "HTTP " .. response.status end)
+---     :bind_result(parse_json)
+---     :map_err(function(err)
+---       local message = type(err) == "table" and err.message or tostring(err)
+---       return "loading example JSON: " .. message
+---     end)
+---
+---   local run = fetch:run()
+---   run:on_complete(function(exception, value, err)
+---     -- Completion may be in a fast event; schedule editor changes.
+---     vim.schedule(function()
+---       local problem = exception or err
+---       if problem ~= nil then
+---         vim.notify(tostring(problem), vim.log.levels.ERROR)
+---         return
+---       end
+---       local buf = vim.api.nvim_create_buf(false, true)
+---       vim.api.nvim_buf_set_lines(buf, 0, -1, false,
+---         vim.split(vim.inspect(value), "\n", { plain = true }))
+---       vim.api.nvim_set_current_buf(buf)
+---     end)
+---   end)
+--- <
+--- The callback's first argument is the native task's exception, followed by
+--- the Task's value and error. Task:run converts evaluation exceptions into
+--- the returned error slot. Use async.await(run) inside asynchronous code;
+--- run:wait(timeout_ms) is useful in synchronous scripts and tests. Both return
+--- value, err. Keep the handle when you need to observe completion or track it
+--- with |cds.Activity:track()|.
+---
+--- Choosing a composition step ~
+--- Use map for a plain value, bind_result for value-or-error functions, and
+--- bind when the next step returns another Task. recover returns a replacement
+--- Task on failure; map_err only changes the error. These examples need no
+--- network and can be run independently: >lua
 ---
 ---   local Task = require("cds.task")
----   Task.new(function()
----     return http.request({ method = "GET", url = url })
----   end)
----     :bind_result(parse)
----     :map_err(function(err) return "the index: " .. err.message end)
----     :run()
+---   local function positive(n)
+---     if n <= 0 then return nil, "expected a positive number" end
+---     return n
+---   end
+---   local value, err = Task.of(3)
+---     :map(function(n) return n * 2 end)
+---     :bind_result(positive)
+---     :bind(function(n) return Task.of("count: " .. n) end)
+---     :run():wait(1000)
+---   assert(value == "count: 6" and err == nil)
+---
+---   local fallback = Task.of(-1):bind_result(positive)
+---     :recover(function(_) return Task.of(0) end)
+---     :run():wait(1000)
+---   assert(fallback == 0)
 --- <
+--- recover also catches exceptions from earlier steps; map_err transforms only
+--- returned errors. To catch a thrown exception, use recover. When a pipeline
+--- touches the editor before completion, put on_main before that step if an
+--- earlier producer can resume in a fast event.
 
 local async = require("cds.async")
 ---@class cds.Task
@@ -48,7 +164,7 @@ function Task.new(fn)
   return setmetatable({ evaluate = fn }, Task)
 end
 
---- Makes a Task that answers `value`.
+--- Makes a Task that succeeds with `value`, including nil or false.
 ---@param value any
 ---@return cds.Task
 function Task.of(value)
@@ -79,8 +195,8 @@ function Task.of_result(value, err)
   return Task.of(value)
 end
 
---- Passes the value through `fn`, which answers the Task to go on with; an
---- error passes through untouched.
+--- On success, calls `fn` with the value and evaluates the Task it returns.
+--- On failure, preserves the error and skips fn.
 ---@param fn fun(value: any): cds.Task
 ---@return cds.Task
 function Task:bind(fn)
@@ -93,8 +209,8 @@ function Task:bind(fn)
   end)
 end
 
---- Binds a step written in the Result convention: fn answers a value, or nil
---- and its error, and the task fails with that error.
+--- Calls a Result-returning function on success. fn must return a non-nil
+--- value, or nil and an error; that error fails the resulting Task.
 ---@param fn fun(value: any): any, any
 ---@return cds.Task
 function Task:bind_result(fn)
@@ -103,8 +219,8 @@ function Task:bind_result(fn)
   end)
 end
 
---- Passes the value through `fn`, which always answers; an error passes through
---- untouched.
+--- Transforms a successful value with fn. Its return is a plain value, not
+--- a Result or another Task. On failure, preserves the error and skips fn.
 ---@param fn fun(value: any): any
 ---@return cds.Task
 function Task:map(fn)
@@ -140,10 +256,9 @@ function Task:ensure(pred, reason)
   end)
 end
 
---- Passes the error through fn; a value passes untouched. This is the step that
---- describes a failure for the reader (what was being fetched, where it was
---- met) without a recover that fails again. Exceptions are not yet errors here;
---- recover is the combinator that catches them.
+--- Transforms a returned error with fn, for example to add the request name.
+--- Successful values pass through unchanged. This does not catch exceptions;
+--- use recover when a step may throw. fn must return a non-nil error.
 ---@param fn fun(err: any): any
 ---@return cds.Task
 function Task:map_err(fn)
@@ -156,10 +271,9 @@ function Task:map_err(fn)
   end)
 end
 
---- Passes the error through `fn`, which answers the Task to go on with; a value
---- passes through untouched. Recovery also catches exceptions, inside the child
---- rather than its awaiter: an uncaught vim.async child failure can cancel its
---- siblings.
+--- On failure, calls fn with the error and evaluates the replacement Task
+--- it returns. Successful values pass through unchanged. Also catches thrown
+--- exceptions from earlier steps before they can fail a native child task.
 ---@param fn fun(err: any): cds.Task
 ---@return cds.Task
 function Task:recover(fn)
@@ -213,7 +327,9 @@ function Task:timed(now)
   end)
 end
 
---- Starts a fresh run and returns the native handle for activity/on_complete.
+--- Starts a fresh execution and returns a native vim.async.Task handle.
+--- Its results are value, err. Observe them with on_complete(exception, value,
+--- err), await the handle inside async code, or use wait in a script or test.
 ---@return vim.async.Task
 function Task:run()
   return async.run(function()

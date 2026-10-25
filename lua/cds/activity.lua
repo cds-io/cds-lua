@@ -1,13 +1,44 @@
 ---@tag cds.activity
----@toc_entry What a plugin is waiting on
+---@toc_entry Tracking running work
 ---@text
---- Tracks every long call a plugin has out, for a statusline segment. A run
---- is tracked from its start to its end; the segment names the runs out with
---- how long each has been out, a User autocmd fires on both edges, and a
---- timer redraws the statusline once a second while anything is out, so the
---- seconds move without the statusline plugin polling. The autocmd name and
---- the clock are parameters, so the module carries nothing of any one plugin.
+--- Show which operations are still running and how long they have taken,
+--- without making a statusline poll each request. A tracker records active
+--- runs, emits a User event when work starts or finishes, and redraws the
+--- statusline every second while busy. Labels and event names belong to the
+--- caller, so multiple plugins can use separate trackers.
+---
+--- Track a Task and display its status ~
+--- This example uses a short delayed task, so it works without a server. It
+--- replaces the current statusline with a file name and the activity segment;
+--- in a plugin, expose segment() to the user's statusline configuration instead.
+--- >lua
+---   local Task = require("cds.task")
+---   local async = require("cds.async")
+---   local activity = require("cds.activity").new({ autocmd = "ExampleActivity" })
+---   _G.example_activity = function() return activity:segment() end
+---   vim.o.statusline = "%f %{v:lua.example_activity()}"
+---
+---   local work = Task.new(function()
+---     async.await(1, function(done) vim.defer_fn(done, 1500) end)
+---     return "done"
+---   end)
+---   local run = activity:track("refresh", "example", work:run())
+---   run:on_complete(function(exception, _, err)
+---     vim.schedule(function()
+---       if exception or err then
+---         vim.notify(tostring(exception or err), vim.log.levels.ERROR)
+---       end
+---     end)
+---   end)
+--- <
+--- track returns the same native handle and removes the entry on success or
+--- failure. It observes completion; it does not consume or recover errors for
+--- the caller. The segment becomes empty when all work finishes. For work
+--- without a Task handle, pair begin(kind, label) with finish(id), including
+--- every error path. Use the User event for other UI that needs to react to
+--- busy-state changes.
 ---@class cds.activity
+
 local M = {}
 
 ---@class cds.activity.Options
@@ -17,7 +48,7 @@ local M = {}
 ---@class cds.Activity
 ---@field runs table<integer, { kind: string, label: string, started: integer }>
 ---@field next_id integer
----@field timer uv.uv_timer_t?     -- running while anything is out
+---@field timer uv.uv_timer_t?     -- running while operations are active
 ---@field pattern string
 ---@field now fun(): integer
 local Activity = {}
@@ -49,7 +80,7 @@ function Activity:stop_timer()
   end
 end
 
---- Records a run out and returns the id that ends it.
+--- Records an active operation and returns the id to pass to finish.
 ---@param kind string    -- what is running: "schedule", "events", "complete"
 ---@param label string   -- who: the adapter's name
 ---@return integer id
@@ -74,7 +105,7 @@ function Activity:begin(kind, label)
   return self.next_id
 end
 
---- Forgets a run; nothing for an id already ended.
+--- Removes an operation; an id already finished has no effect.
 ---@param id integer
 function Activity:finish(id)
   if not self.runs[id] then
@@ -87,8 +118,8 @@ function Activity:finish(id)
   self:fire()
 end
 
---- Writes the statusline text: `⟳ events google 2s`, every run out in the order
---- they started, joined by ` · `; empty when nothing is out.
+--- Returns statusline text such as `⟳ events google 2s`, with active operations
+--- in start order, joined by ` · `; empty when no work is running.
 ---@return string
 function Activity:segment()
   local parts = {}
@@ -98,20 +129,19 @@ function Activity:segment()
   return table.concat(parts, " · ")
 end
 
---- Whether any run is out.
+--- Whether any tracked operation is still running.
 ---@return boolean
 function Activity:busy()
   return next(self.runs) ~= nil
 end
 
---- Tracks `task` from now to its completion, however it ends. The end is
---- observed, never awaited: on this nightly a failing child fails the task
---- awaiting it, and the tracker must not die with what it tracks. The finish is
---- scheduled, since the completion callback may run in a fast event, where
---- firing an autocmd is refused.
+--- Tracks a native Task until it completes, on success or failure, and returns
+--- the same handle. Observes completion without awaiting or recovering errors.
+--- Schedules finish on the main loop because firing an autocmd is forbidden
+--- in a fast-event callback.
 ---@param kind string
 ---@param label string
----@param task vim.async.Task   -- what cds.Task:run answers
+---@param task vim.async.Task   -- the handle returned by cds.Task:run
 ---@return vim.async.Task task
 function Activity:track(kind, label, task)
   local id = self:begin(kind, label)
