@@ -68,6 +68,7 @@ including OAuth, secrets, and processes.
   Keyed floating selection ........................................ |cds.pick|
   File and JSON persistence .................................... |cds.persist|
   Persistent scratch views ..................................... |cds.scratch|
+  Window-owned companion views ............................... |cds.companion|
   Command orchestration ........................................ |cds.command|
   Tracking running work ....................................... |cds.activity|
   Calendar arithmetic and formatting .......................... |cds.datetime|
@@ -681,6 +682,19 @@ Return ~
 `(string?)` err
 
 ------------------------------------------------------------------------------
+                                                     *cds.persist.write_lines()*
+                     `persist.write_lines`({path}, {lines})
+Atomically write a list of lines with writefile's newline semantics.
+Each item ends with a newline; an empty list writes an empty file. Embedded
+newlines inside an item become NUL bytes, as with vim.fn.writefile.
+Parameters ~
+{path} `(string)`
+{lines} `(string[])`
+Return ~
+`(true?)` saved
+`(string?)` err
+
+------------------------------------------------------------------------------
                                                        *cds.persist.save_json()*
                       `persist.save_json`({path}, {value})
 Encode before touching disk, then atomically save the JSON value.
@@ -802,6 +816,127 @@ Release the owned buffer and its associated buffer-local autocmds.
 
 
 ==============================================================================
+                                                                 *cds.companion*
+Attach a sidebar to an editor window. Each owner gets its own scratch
+buffer and split, even when two owners show the same document. The manager
+tracks buffer changes and cursor movement, forgets a view when either
+window closes, and releases its buffer and autocmds. Window-close cleanup
+is deferred so it cannot interrupt the :q that triggered it.
+
+The caller supplies meaning through accept, on_update and on_track:
+>lua
+  local contents = require("cds.companion").new({
+    filetype = "example-contents", width = 32,
+    accept = function(buf) return vim.bo[buf].filetype == "help" end,
+    on_update = function(view, buf)
+      vim.api.nvim_buf_set_lines(view.buf, 0, -1, false, {
+        "Contents of " .. vim.api.nvim_buf_get_name(buf),
+      })
+    end,
+  })
+  contents:open(vim.api.nvim_get_current_win())
+<
+accept answers true for a supported buffer, false to close, or nil to
+check again on the next main-loop turn (a buffer still being initialized).
+A deferred answer is applied only to the same view and owner buffer.
+refresh redraws after the owner's content changes; track follows its
+cursor, except while the reader is in the companion. Hooks own content,
+mappings and navigation; data is an independent table for each view.
+
+Closing the last normal window of a tab leaves an empty buffer instead;
+floating windows do not count as replacements. Options set through window
+are restored when a window survives cleanup. A companion window switched
+to an unrelated buffer is detached and never closed by later cleanup.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.CompanionView}
+Fields ~
+{owner} `(integer)`
+{source_buf} `(integer)`
+{buf} `(integer)`
+{win} `(integer)`
+{data} `(table<string, any>)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.companion.Options}
+Fields ~
+{filetype} `(string?)`
+{split} `(optional)` `("left"|"right"|"above"|"below")`
+{width} `(optional)` `(integer|fun(): integer)`
+{height} `(optional)` `(integer|fun(): integer)`
+{window} `(optional)` `(table<string, any>)` window-local options owned by the companion
+{accept} `(optional)` `(fun(buf: integer, owner: integer): boolean?)`
+{on_create} `(optional)` `(fun(view: cds.CompanionView))`
+{on_update} `(optional)` `(fun(view: cds.CompanionView, buf: integer))`
+{on_track} `(optional)` `(fun(view: cds.CompanionView))`
+
+------------------------------------------------------------------------------
+                                                           *cds.companion.new()*
+                            `companion.new`({opts})
+Make an independent set of companions. No windows are opened yet.
+Parameters ~
+{opts} `(cds.companion.Options)`
+Return ~
+`(cds.Companion)`
+
+------------------------------------------------------------------------------
+                                                           *cds.Companion:get()*
+                            `Companion:get`({owner})
+Return a live view; stale handles are forgotten before deferred cleanup.
+Parameters ~
+{owner} `(integer)`
+Return ~
+`(cds.CompanionView?)`
+
+------------------------------------------------------------------------------
+                                                         *cds.Companion:close()*
+                           `Companion:close`({owner})
+Close a companion without closing its owner.
+Parameters ~
+{owner} `(integer)`
+
+------------------------------------------------------------------------------
+                                                         *cds.Companion:track()*
+                           `Companion:track`({owner})
+Notify the caller that the owner's cursor moved; leave the companion's
+selection alone while it has focus.
+Parameters ~
+{owner} `(integer)`
+
+------------------------------------------------------------------------------
+                                                       *cds.Companion:refresh()*
+                          `Companion:refresh`({owner})
+Rebuild a companion from its owner's current buffer, with the same
+acceptance and deferred-initialization checks as a buffer change.
+Parameters ~
+{owner} `(integer)`
+
+------------------------------------------------------------------------------
+                                                          *cds.Companion:open()*
+                           `Companion:open`({owner})
+Open beside the owner and focus the companion. Unsupported or unfinished
+initial buffers open nothing; opening an existing view returns it unchanged.
+Parameters ~
+{owner} `(integer)`
+Return ~
+`(cds.CompanionView?)`
+
+------------------------------------------------------------------------------
+                                                        *cds.Companion:toggle()*
+                          `Companion:toggle`({owner})
+Toggle a companion without changing other owners' views.
+Parameters ~
+{owner} `(integer)`
+
+------------------------------------------------------------------------------
+                                                     *cds.Companion:close_all()*
+                            `Companion:close_all`()
+Close every view owned by this manager.
+
+
+==============================================================================
                                                                    *cds.command*
 Declare a command's argument reader, work and presentation together.
 register installs commands and optional keys; the shared boundary reports
@@ -820,7 +955,8 @@ run returns value, err; only a non-nil error slot means failure, so actions
 returning nothing and values such as false work too. async=true runs work
 as a cds Task and schedules presentation after completion. Each invocation
 captures its own input. Command-specific validation and confirmation stay
-in the caller. Re-registering a command replaces its definition and keys.
+in the caller. notify can route failures through a plugin's configured
+notifier; otherwise vim.notify is used. Re-registering a command replaces its definition and keys.
 
 ------------------------------------------------------------------------------
 Class ~
@@ -837,6 +973,7 @@ Fields ~
 {range} `(optional)` `(boolean|integer|string)`
 {keys} `(string[]?)`
 {async} `(boolean?)`
+{notify} `(optional)` `(fun(message: string, level: integer))` defaults to vim.notify
 
 ------------------------------------------------------------------------------
                                                         *cds.command.register()*

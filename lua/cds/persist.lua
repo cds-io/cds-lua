@@ -77,6 +77,21 @@ function M.write(path, content)
   return true
 end
 
+--- Atomically write a list of lines with writefile's newline semantics.
+--- Each item ends with a newline; an empty list writes an empty file. Embedded
+--- newlines inside an item become NUL bytes, as with vim.fn.writefile.
+---@param path string
+---@param lines string[]
+---@return true? saved
+---@return string? err
+function M.write_lines(path, lines)
+  local encoded = {}
+  for i, line in ipairs(lines) do
+    encoded[i] = (line:gsub("\n", "\0"))
+  end
+  return M.write(path, table.concat(encoded, "\n") .. (#lines > 0 and "\n" or ""))
+end
+
 --- Encode before touching disk, then atomically save the JSON value.
 ---@param path string
 ---@param value any

@@ -162,4 +162,21 @@ describe("cds.command", function()
     end))
     assert.same({ "async refusal" }, messages)
   end)
+  it("routes failures to the caller's notifier", function()
+    local reported
+    command.register({
+      {
+        name = "CdsExample",
+        run = function()
+          return nil, "refused"
+        end,
+        notify = function(message, level)
+          reported = { message, level }
+        end,
+      },
+    })
+    vim.cmd.CdsExample()
+    assert.same({ "refused", vim.log.levels.ERROR }, reported)
+    assert.same({}, messages)
+  end)
 end)

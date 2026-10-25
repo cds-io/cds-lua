@@ -18,7 +18,8 @@
 --- returning nothing and values such as false work too. async=true runs work
 --- as a cds Task and schedules presentation after completion. Each invocation
 --- captures its own input. Command-specific validation and confirmation stay
---- in the caller. Re-registering a command replaces its definition and keys.
+--- in the caller. notify can route failures through a plugin's configured
+--- notifier; otherwise vim.notify is used. Re-registering a command replaces its definition and keys.
 
 ---@class cds.command
 local M = {}
@@ -37,10 +38,15 @@ local installed = {}
 ---@field range? boolean|integer|string
 ---@field keys string[]?
 ---@field async boolean?
+---@field notify? fun(message: string, level: integer) -- defaults to vim.notify
 
 ---@param err any
-local function report(err)
-  vim.notify(type(err) == "table" and (err.message or vim.inspect(err)) or tostring(err), vim.log.levels.ERROR)
+---@param spec cds.command.Spec
+local function report(err, spec)
+  (spec.notify or vim.notify)(
+    type(err) == "table" and (err.message or vim.inspect(err)) or tostring(err),
+    vim.log.levels.ERROR
+  )
 end
 
 ---@param spec cds.command.Spec
@@ -49,13 +55,13 @@ end
 ---@param input any
 local function present(spec, value, err, input)
   if err ~= nil then
-    report(err)
+    report(err, spec)
     return
   end
   if spec.present then
     local ok, failure = pcall(spec.present, value, input)
     if not ok then
-      report(failure)
+      report(failure, spec)
     end
   end
 end
@@ -76,7 +82,7 @@ function M.register(specs)
         return value
       end, args)
       if not ok or read_err ~= nil then
-        report(not ok and input or read_err)
+        report(not ok and input or read_err, spec)
         return
       end
       if spec.async then
@@ -94,7 +100,7 @@ function M.register(specs)
         if ran then
           present(spec, value, err, input)
         else
-          report(value)
+          report(value, spec)
         end
       end
     end, {

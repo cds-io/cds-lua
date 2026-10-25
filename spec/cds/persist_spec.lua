@@ -56,4 +56,29 @@ describe("cds.persist", function()
     assert.same({}, vim.fn.glob(root .. "/directory.*", false, true))
     assert.equal(1, vim.fn.isdirectory(root .. "/directory"))
   end)
+  it("writes line lists with the same bytes as writefile", function()
+    local expected, actual = root .. "/native", root .. "/atomic"
+    vim.fn.mkdir(root, "p")
+    for _, lines in ipairs({ {}, { "" }, { "one", "two" }, { "one\nembedded", "" } }) do
+      vim.fn.writefile(lines, expected)
+      assert(persist.write_lines(actual, lines))
+      assert.equal(persist.read(expected), persist.read(actual))
+    end
+  end)
+
+  it("keeps the previous file when the process cannot write the temporary file", function()
+    local path = root .. "/state"
+    assert(persist.write(path, "previous"))
+    local real_write = vim.uv.fs_write
+    vim.uv.fs_write = function()
+      return nil, "disk full"
+    end
+    local called, ok, err = pcall(persist.write, path, "replacement")
+    vim.uv.fs_write = real_write
+    assert.is_true(called)
+    assert.is_nil(ok)
+    assert.matches("disk full", err)
+    assert.equal("previous", persist.read(path))
+    assert.same({}, vim.fn.glob(path .. ".*", false, true))
+  end)
 end)
