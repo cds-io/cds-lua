@@ -59,9 +59,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: 2.5.2
           args: --check cds-lua/lua cds-lua/spec
+      # the action runs from the workspace root, where no .luacheckrc is; the
+      # library's is named outright
       - uses: lunarmodules/luacheck@v1
         with:
-          args: cds-lua/lua cds-lua/spec
+          args: --config cds-lua/.luacheckrc cds-lua/lua cds-lua/spec
 
   doc:
     runs-on: ubuntu-latest
