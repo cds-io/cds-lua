@@ -2,7 +2,7 @@
 
 A common library for building Neovim plugins in a functional style: `task`
 for asynchronous work, and the modules that grew out of the plugins that use
-them (processes, HTTP, documents, redraws). The vocabulary they are written in,
+them (processes, HTTP, OAuth, redraws). The vocabulary they are written in,
 `fp` and `result`, and the `needs` check a plugin runs at startup, are the
 [cds-lua-fp](https://github.com/cds-io/cds-lua-fp) rock, which this library
 depends on. It grows as the plugins do.

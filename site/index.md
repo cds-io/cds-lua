@@ -8,7 +8,7 @@ permalink: /
 
 A common library for Neovim plugins written in a functional style: `task` for
 asynchronous work, and the modules that grew out of the plugins that use them
-(processes, HTTP, documents, redraws). The vocabulary they are written in,
+(processes, HTTP, OAuth, redraws). The vocabulary they are written in,
 `cds.fp` for lists and `cds.result` for the Result convention, and the
 `cds.needs` check a plugin runs at startup, are the
 [cds-lua-fp](https://github.com/cds-io/cds-lua-fp) rock, which this library
