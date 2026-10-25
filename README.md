@@ -9,6 +9,10 @@ HTTP responses; `redraw` preserves the selected item when a listing changes;
 Use only the modules you need. The list and Result helpers, and the startup
 API check, live in [cds-lua-fp](https://github.com/cds-io/cds-lua-fp).
 
+<a href="https://dotfyle.com/plugins/cds-io/cds-lua">
+    <img src="https://dotfyle.com/plugins/cds-io/cds-lua/shield?style=for-the-badge" alt="Find cds-lua on Dotfyle" />
+</a>
+
 ## Setup
 
 The asynchronous modules require Neovim 0.13+ with `vim.async` available.
