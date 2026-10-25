@@ -26,15 +26,16 @@ function M.server()
   os.exit(1)
 end
 
---- A .luarc.json for the library: LuaJIT, Neovim's runtime types and libuv's
---- in the library, spec/ and .git left out.
+--- A .luarc.json for the library: LuaJIT, Neovim's runtime types, libuv's and
+--- the vocabulary rock beside this checkout in the library, spec/ and .git
+--- left out.
 ---@return string path
 function M.config()
   local path = vim.fn.tempname() .. ".luarc.json"
   vim.fn.writefile({
     vim.json.encode({
       ["runtime.version"] = "LuaJIT",
-      ["workspace.library"] = { vim.env.VIMRUNTIME .. "/lua", "${3rd}/luv/library" },
+      ["workspace.library"] = { vim.env.VIMRUNTIME .. "/lua", "${3rd}/luv/library", M.root() .. "/../cds-lua-fp/lua" },
       ["workspace.ignoreDir"] = { "spec", ".git" },
       ["workspace.checkThirdParty"] = false,
       ["diagnostics.globals"] = { "vim" },

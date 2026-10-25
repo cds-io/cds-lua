@@ -1,6 +1,6 @@
 return {
   _all = {
-    lpath = "lua/?.lua;lua/?/init.lua;spec/?.lua;spec/fixtures/lua/?.lua",
+    lpath = "lua/?.lua;lua/?/init.lua;../cds-lua-fp/lua/?.lua;spec/?.lua;spec/fixtures/lua/?.lua",
     helper = "spec/minimal_init.lua",
   },
   default = {

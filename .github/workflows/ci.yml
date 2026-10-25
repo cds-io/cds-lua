@@ -13,6 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          path: cds-lua
+      # the vocabulary rock beside the library, where .busted looks for it
+      - uses: actions/checkout@v7
+        with:
+          repository: cds-io/cds-lua-fp
+          path: cds-lua-fp
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
@@ -24,11 +31,18 @@ jobs:
       # --local lands busted under ~/.luarocks, where spec/busted.lua looks
       - run: luarocks --lua-version=5.1 install --local busted
       - run: make test
+        working-directory: cds-lua
 
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          path: cds-lua
+      - uses: actions/checkout@v7
+        with:
+          repository: cds-io/cds-lua-fp
+          path: cds-lua-fp
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
@@ -37,15 +51,17 @@ jobs:
           curl -fsSL https://github.com/LuaLS/lua-language-server/releases/download/3.19.2/lua-language-server-3.19.2-linux-x64.tar.gz | tar xz -C "$HOME"
           echo "$HOME/bin" >> "$GITHUB_PATH"
       - run: make typecheck
+        working-directory: cds-lua
       - run: make site
+        working-directory: cds-lua
       - uses: JohnnyMorganz/stylua-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: 2.5.2
-          args: --check lua spec
+          args: --check cds-lua/lua cds-lua/spec
       - uses: lunarmodules/luacheck@v1
         with:
-          args: lua spec
+          args: cds-lua/lua cds-lua/spec
 
   doc:
     runs-on: ubuntu-latest
@@ -53,6 +69,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: cds-lua
+      - uses: actions/checkout@v7
+        with:
+          repository: cds-io/cds-lua-fp
+          path: cds-lua-fp
       # mini.doc beside the library, where the Makefile looks first
       - uses: actions/checkout@v7
         with:

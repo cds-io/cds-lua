@@ -9,9 +9,9 @@
 -- luacheck: globals MiniDoc
 require("mini.doc").setup({ silent = true })
 
--- in the order the manual reads: taking the library, the two conventions,
--- then the modules
-local FILES = { "needs", "module", "result", "fp", "task", "async", "http", "redraw", "activity" }
+-- in the order the manual reads; the vocabulary and the needs check (fp,
+-- result, module, needs) are the cds-lua-fp rock's own manual
+local FILES = { "task", "async", "http", "redraw", "activity" }
 
 ---@param block table   -- a mini.doc block: an array of sections
 ---@param id string     -- "@tag"

@@ -20,6 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          path: cds-lua
+      # the vocabulary rock beside the library, for the language server
+      - uses: actions/checkout@v7
+        with:
+          repository: cds-io/cds-lua-fp
+          path: cds-lua-fp
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
@@ -29,10 +36,11 @@ jobs:
           echo "$HOME/bin" >> "$GITHUB_PATH"
       # site/modules/ from the annotations, beside the committed front page
       - run: make site
+        working-directory: cds-lua
       - uses: actions/configure-pages@v5
       - uses: actions/jekyll-build-pages@v1
         with:
-          source: ./site
+          source: ./cds-lua/site
           destination: ./_site
       - uses: actions/upload-pages-artifact@v3
 

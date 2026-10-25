@@ -1,3 +1,22 @@
+---@tag cds-lua
+---@text
+--- cds-lua is a common library for Neovim plugins written in a functional
+--- style: `task` for asynchronous work, and the modules that grew out of the
+--- plugins that use them (processes, HTTP, documents, redraws). The
+--- vocabulary they are written in, |cds.fp| for lists and |cds.result| for
+--- the Result convention, is the cds-lua-fp rock (|cds-lua-fp|), which this
+--- library depends on; |cds.needs|, from the same rock, is how a plugin takes
+--- both: it declares the functions it calls, and the check at startup names
+--- what the libraries installed lack. Each module is pure Lua that names no
+--- plugin; every function answers `value` or `nil, err`, and `nil` alone
+--- means failure.
+---
+--- This manual covers the modules the plugins call in common. The rest (the
+--- document readers, OAuth, processes, dates) are documented in their source,
+--- which the language server shows on hover, and on the reference site.
+---
+---@toc
+
 ---@tag cds.task
 ---@toc_entry Tasks
 ---@text
