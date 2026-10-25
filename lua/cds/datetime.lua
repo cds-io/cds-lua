@@ -1,8 +1,12 @@
--- Does calendar arithmetic on plain wall-clock values and formats them with
--- the LDML subset a note needs. No clock is read here and no zone database
--- exists: a value is { year, month, day, hour?, min? } and means what it says
--- on the wall.
---
+---@tag cds.datetime
+---@toc_entry Calendar arithmetic and formatting
+---@text
+--- Does calendar arithmetic on local date/time values and formats them using
+--- patterns such as `yyyy-MM-dd` and `HH:mm`. A value is a table with year,
+--- month, day, and optional hour and min fields. These fields describe a
+--- calendar date and time, without a time zone or UTC offset. The module does
+--- not read the current clock or convert between named time zones.
+
 -- Every trip through os.time goes at noon. In a zone whose clocks go forward
 -- at midnight (Chile), 00:00 on the changeover day does not exist and mktime
 -- moves it, so a date normalised at midnight can come back a day off; noon
