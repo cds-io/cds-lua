@@ -66,6 +66,14 @@ describe("cds.http", function()
     assert.truthy(("\n" .. fakeproc.calls[1].stdin):find("\ncompressed\n", 1, true))
   end)
 
+  it("asks for a HEAD with curl's head option, which reads no body", function()
+    fakeproc.install({ { match = "curl", result = ok_response(200, "") } })
+    request({ method = "HEAD", url = "https://api.test/big.zip" })
+    local cfg = "\n" .. fakeproc.calls[1].stdin
+    assert.truthy(cfg:find("\nhead\n", 1, true))
+    assert.falsy(cfg:find("request =", 1, true))
+  end)
+
   it("quotes backslashes, quotes and newlines for curl's config parser", function()
     assert.are.equal('"a\\\\b \\"c\\" d\\ne"', http.quote('a\\b "c" d\ne'))
   end)
