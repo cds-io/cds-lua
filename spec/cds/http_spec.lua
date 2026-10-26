@@ -81,6 +81,31 @@ describe("cds.http", function()
     })
   end)
 
+  it("asks curl for the final url and answers it on the response", function()
+    fakeproc.install({
+      {
+        match = "curl",
+        result = {
+          stdout = "HTTP/2 200\r\ncontent-type: text/xml\r\n\r\n<rss/>"
+            .. "\n--cds-http-status:200 https://www.example.com/feed.xml",
+        },
+      },
+    })
+    local res = request({ method = "GET", url = "https://example.com/feed" })
+    assert.truthy(
+      fakeproc.calls[1].stdin:find('write-out = "\\n--cds-http-status:%{http_code} %{url_effective}"', 1, true)
+    )
+    assert.are.equal(200, res.status)
+    assert.are.equal("<rss/>", res.body)
+    assert.are.equal("https://www.example.com/feed.xml", res.url)
+  end)
+
+  it("answers no url when the write-out carries only the status", function()
+    fakeproc.install({ { match = "curl", result = ok_response(200, "{}") } })
+    local res = request({ method = "GET", url = "https://api.test/x" })
+    assert.is_nil(res.url)
+  end)
+
   it("keeps the last header block when curl dumps several", function()
     local out = "HTTP/1.1 100 Continue\r\n\r\nHTTP/2 200\r\na: 1\r\n\r\nbody\n--cds-http-status:200"
     local res = http.parse(out)

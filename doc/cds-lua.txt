@@ -410,6 +410,7 @@ Fields ~
 {status} `(integer)`
 {headers} `(table<string, string>)` lower-cased names
 {body} `(string)`
+{url} `(string?)` the URL the response came from, after redirects
 
 ------------------------------------------------------------------------------
 Class ~

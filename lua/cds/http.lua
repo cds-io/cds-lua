@@ -49,6 +49,7 @@ local M = {}
 ---@field status integer
 ---@field headers table<string, string>   -- lower-cased names
 ---@field body string
+---@field url string?                     -- the URL the response came from, after redirects
 
 ---@class cds.http.Error
 ---@field kind "unreachable"|"timeout"|"interrupted"|"tls"|"curl"|"spawn"
@@ -114,7 +115,7 @@ function M.config(req)
     "compressed",
     "dump-header = " .. M.quote("-"),
     "max-time = " .. tostring(req.timeout or 30),
-    "write-out = " .. M.quote(MARK .. "%{http_code}"),
+    "write-out = " .. M.quote(MARK .. "%{http_code} %{url_effective}"),
     "request = " .. M.quote(req.method),
     "url = " .. M.quote(req.url),
   }
@@ -138,7 +139,8 @@ function M.parse(out)
   if not mark then
     return nil
   end
-  local status = tonumber(out:sub(mark + #MARK))
+  local code, url = out:sub(mark + #MARK):match("^(%d+)%s*(.-)%s*$")
+  local status = tonumber(code)
   local raw = out:sub(1, mark - 1)
   -- Header blocks end at a blank line; a redirect or 100-continue leaves
   -- several blocks, and the last one is the response we want.
@@ -154,7 +156,7 @@ function M.parse(out)
     end
     body = rest
   end
-  return { status = status, headers = headers, body = body }
+  return { status = status, headers = headers, body = body, url = url ~= "" and url or nil }
 end
 
 --- Set to a function to be told about every request: { method, url (without
