@@ -8,7 +8,9 @@ HTTP responses; `redraw` preserves the selected item when a listing changes;
 selector, including focus restoration and teardown. `persist` handles atomic
 file/JSON writes, `scratch` owns persistent buffer/window views, `companion`
 attaches sidebars to specific editor windows, and `command` composes argument
-reading, work, presentation, and error reporting.
+reading, work, presentation, and error reporting. `command.with_activity` adds
+async execution, Activity tracking, and optional temporary window statusline
+feedback to a command spec, including cleanup on failure and overlapping runs.
 
 Use only the modules you need. The list and Result helpers, and the startup
 API check, live in [cds-lua-fp](https://github.com/cds-io/cds-lua-fp).

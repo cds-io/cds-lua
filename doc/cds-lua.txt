@@ -976,6 +976,63 @@ Fields ~
 {notify} `(optional)` `(fun(message: string, level: integer))` defaults to vim.notify
 
 ------------------------------------------------------------------------------
+Class ~
+{cds.command.ActivityOptions}
+Fields ~
+{kind} `(string)`
+{label} `(string|fun(input: any): string)`
+{window} `(optional)` `(fun(input: any): integer?)` captured target; omit for tracking only
+
+------------------------------------------------------------------------------
+                                                *cds.command.activity_segment()*
+                       `command.activity_segment`({win})
+Combined Activity text for temporary command feedback in a window.
+Parameters ~
+{win} `(integer)`
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                   *cds.command.with_activity()*
+              `command.with_activity`({activity}, {opts}, {spec})
+Return a shallow copy of spec with async work tracked by activity. The
+original spec and tracker are retained by reference, never deep-copied.
+Tracking covers run; read and present keep cds.command's usual boundaries.
+Returned errors and exceptions finish tracking before register reports them.
+An optional window callback enables temporary statusline feedback, restored
+after all overlapping commands finish. Closing the window is safe; a user's
+replacement statusline is preserved. The compositor never changes focus.
+
+Capture buffer/window identities in read, before yielding. The plugin owns
+output rendering, validity checks and any decision to reopen a closed view.
+Omit window when using activity:segment() in a custom statusline instead.
+>lua
+  local command = require("cds.command")
+  local activity = require("cds.activity").new({ autocmd = "ExampleActivity" })
+  command.register({ command.with_activity(activity, {
+    kind = "fetch", label = function(input) return input.url end,
+    window = function(input) return input.win end,
+  }, {
+    name = "ExampleFetch", nargs = 1,
+    read = function(args)
+      return { url = args.args, buf = vim.api.nvim_get_current_buf(), win = vim.api.nvim_get_current_win() }
+    end,
+    run = function(input) return require("cds.http").request({ url = input.url }) end,
+    present = function(response, input)
+      if vim.api.nvim_buf_is_valid(input.buf) then
+        vim.api.nvim_buf_set_lines(input.buf, 0, -1, false, vim.split(response.body, "\n"))
+      end
+    end,
+  }) })
+<
+Parameters ~
+{activity} `(cds.Activity)`
+{opts} `(cds.command.ActivityOptions)`
+{spec} `(cds.command.Spec)`
+Return ~
+`(cds.command.Spec)`
+
+------------------------------------------------------------------------------
                                                         *cds.command.register()*
                           `command.register`({specs})
 Register commands with optional normal-mode mappings to their names.
