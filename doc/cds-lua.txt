@@ -73,6 +73,13 @@ including OAuth, secrets, and processes.
   Tracking running work ....................................... |cds.activity|
   Calendar arithmetic and formatting .......................... |cds.datetime|
   Displaying inline images ...................................... |cds.images|
+  Document source contract .................................... |cds.document|
+  HTML to Markdown ................................................ |cds.html|
+  HTML character references ................................... |cds.entities|
+  Relative document URLs ........................................... |cds.uri|
+  Optional vellum rendering ..................................... |cds.vellum|
+  Document tag navigation .................................... |cds.navigator|
+  Document display lifecycle ............................. |cds.document_view|
 
                                                                       *cds.task*
 A Task describes asynchronous work without starting it. Build a pipeline
@@ -1457,6 +1464,394 @@ Parameters ~
 Removes every placement made in the buffer.
 Parameters ~
 {buf} `(integer)`
+
+
+==============================================================================
+                                                                  *cds.document*
+Pure Markdown documents carry one-based anchor rows and link spans with zero-based byte columns. Explicit HTML
+anchors take precedence over generated heading slugs. Renderers preserve this source document and map its rows
+through their block anchors.
+
+------------------------------------------------------------------------------
+                                                        *cds.document.link_at()*
+                       `document.link_at`({line}, {col})
+The destination of the Markdown link under byte column `col` (from zero)
+of `line`: the innermost `[text](href)` whose span covers it, so an
+image inside a link answers the link; else the innermost `![alt](src)`
+that does; else a bare `<url>` that does; nil off every link.
+Parameters ~
+{line} `(string)`
+{col} `(integer)`
+Return ~
+`(string|nil)`
+
+------------------------------------------------------------------------------
+                                                           *cds.document.slug()*
+                            `document.slug`({text})
+A heading's text as GitHub writes its anchor: lower-cased, letters,
+digits, `-` and `_` kept, each space a dash, everything else dropped.
+Bytes past ASCII are kept, so a heading in another script keeps its
+letters.
+Parameters ~
+{text} `(string)`
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                        *cds.document.heading()*
+                   `document.heading`({markdown}, {fragment})
+The heading of `markdown` (a list of lines) whose slug is `fragment`:
+its index and its text as it reads; nil when no heading has it.
+Parameters ~
+{markdown} `(string[])`
+{fragment} `(string)`
+Return ~
+`(integer|nil, string|nil)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.DocumentLink}
+Fields ~
+{lnum} `(integer)` one-based Markdown line
+{col} `(integer)` zero-based byte column, inclusive
+{end_col} `(integer)` zero-based byte column, exclusive
+{target} `(string)`
+{kind} `(string)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.Document}
+Fields ~
+{markdown} `(string[])`
+{anchors} `(table<string, integer>)` anchor name to one-based Markdown line
+{links} `(cds.DocumentLink[])`
+{url} `(string?)`
+
+------------------------------------------------------------------------------
+                                                            *cds.document.new()*
+                       `document.new`({markdown}, {opts})
+Build a source document; explicit anchors override generated heading slugs.
+Inputs are copied. Links use zero-based byte columns and one-based lines.
+Parameters ~
+{markdown} `(string[])`
+{opts} `(optional)` `({ anchors: table<string, integer>?, url: string? })`
+Return ~
+`(cds.Document)`
+
+------------------------------------------------------------------------------
+                                                        *cds.document.prepend()*
+                      `document.prepend`({doc}, {prefix})
+Add a plugin-specific header, preserving the source document's anchors.
+Parameters ~
+{doc} `(cds.Document)`
+{prefix} `(string[])`
+Return ~
+`(cds.Document)`
+
+------------------------------------------------------------------------------
+                                                           *cds.document.link()*
+                      `document.link`({doc}, {row}, {col})
+The most specific link at a source position, links preferred over images.
+Parameters ~
+{doc} `(cds.Document)`
+{row} `(integer)`
+{col} `(integer)`
+Return ~
+`(string?)`
+
+------------------------------------------------------------------------------
+                                                         *cds.document.anchor()*
+                `document.anchor`({doc}, {fragment}, {rendered})
+Resolve an explicit or generated anchor and map it through vellum's blocks.
+A compressed block lands at its first rendered line, without guessing offsets.
+Parameters ~
+{doc} `(cds.Document)`
+{fragment} `(string)`
+{rendered} `(optional)` `({ styled: boolean?, blocks: integer[][]?, lines: string[] })`
+Return ~
+`(integer?)`
+
+
+==============================================================================
+                                                                      *cds.html*
+Convert an HTML fragment or page into a document for Markdown or vellum. document(body, { base = url, page =
+true }) retains explicit IDs and named anchors; page selection prefers main, article, then body. Conversion is
+pure and fetching remains caller-owned.
+
+------------------------------------------------------------------------------
+                                                               *cds.html.code()*
+                              `html.code`({text})
+`text` as a Markdown code span: one backtick each side, or two with a
+space inside when the text holds a backtick.
+Parameters ~
+{text} `(string)`
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                             *cds.html.escape()*
+                             `html.escape`({text})
+Prose as one Markdown line: its characters escaped, and its start.
+Parameters ~
+{text} `(string)`
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.html.Block}
+Fields ~
+{anchors} `(optional)` `(string[])`
+{kind} `("para"|"heading"|"pre"|"quote"|"item"|"row"|"rule")`
+{text} `(string)` inline Markdown; a newline is a br; a pre block keeps its own
+{level} `(optional)` `(integer)` a heading's level, an item's list depth
+{marker} `(optional)` `(string)` an item's "- " or "N. "; spaces on its later blocks
+{indent} `(optional)` `(integer)` an item's indent: the widths of its enclosing items' markers
+{quote} `(optional)` `(integer)` the blockquote depth of a block inside one
+{lang} `(optional)` `(string)` a pre block's language, from `<code class="language-x">`
+{cells} `(optional)` `(string[])` a row's cells, inline Markdown, `|` escaped
+{header} `(optional)` `(boolean)` a row standing as its table's header
+
+------------------------------------------------------------------------------
+Class ~
+{cds.html.Opts}
+Fields ~
+{base} `(optional)` `(string the address relative image sources and link targets resolve against)`
+{links} `(optional)` `(boolean)` preserve fragment and mail links
+{drop} `(optional)` `(table<string, boolean> the tags dropped with their contents; an article's by default)`
+
+------------------------------------------------------------------------------
+                                                             *cds.html.blocks()*
+                         `html.blocks`({html}, {opts})
+The blocks of an article's HTML, in order; a block with no text is
+dropped.
+Parameters ~
+{html} `(string)`
+{opts} `(optional)` `(cds.html.Opts)`
+Return ~
+`(cds.html.Block[])`
+
+------------------------------------------------------------------------------
+                                                           *cds.html.markdown()*
+                        `html.markdown`({html}, {opts})
+An article's HTML as Markdown lines: a blank line between blocks except
+between the items of a list and the rows of a table, a blockquote's
+lines behind `> ` per level, and never a blank at either end or two in
+a row.
+Parameters ~
+{html} `(string)`
+{opts} `(optional)` `(cds.html.Opts)`
+Return ~
+`(string[])`
+`(table<string, integer>)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.html.PageOpts}
+Fields ~
+{links} `(optional)` `(boolean)` preserve fragment and mail links
+{base} `(optional)` `(string the page's address, which relative links and images resolve against)`
+{charset} `(optional)` `(string the charset the document is written in, transcoded to UTF-8 first)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.html.Page}
+Fields ~
+{title} `(optional)` `(string the document's title, entities decoded and whitespace flattened)`
+{anchors} `(table<string, integer>)`
+{lines} `(string[] the content region as Markdown)`
+
+------------------------------------------------------------------------------
+                                                               *cds.html.page()*
+                        `html.page`({document}, {opts})
+A web page's content as Markdown: the first `main` element, else the
+first `article`, else the `body`, else the whole document, a region that
+renders to no text giving way to the next; the region's chrome is
+dropped (a header and footer only from a body or a whole document), and
+its links and images resolve against the href of the document's first
+`<base>`, itself resolved against `opts.base`, or `opts.base` when it
+has none.
+Parameters ~
+{document} `(string)`
+{opts} `(cds.html.PageOpts)`
+Return ~
+`(cds.html.Page)`
+
+------------------------------------------------------------------------------
+                                                            *cds.html.charset()*
+                   `html.charset`({content_type}, {document})
+The charset a document is written in: the one its `Content-Type` header
+value names, else, in its first 2048 bytes, a meta's `charset` attribute
+or the `charset=` in the content of a meta whose `http-equiv` is
+Content-Type, lower-cased; nil when none names one.
+Parameters ~
+{content_type} `(string?)`
+{document} `(string)`
+Return ~
+`(string?)`
+
+------------------------------------------------------------------------------
+                                                              *cds.html.reads()*
+                            `html.reads`({charset})
+Whether transcode() reads `charset` (a document in UTF-8 reads as it is).
+Parameters ~
+{charset} `(string)`
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                          *cds.html.transcode()*
+                    `html.transcode`({document}, {charset})
+`document` as UTF-8 when `charset` is ISO-8859-1 or windows-1252: each
+byte above 0x7F becomes its windows-1252 code point's UTF-8. A document
+in UTF-8 or in any other charset comes back as it was.
+Parameters ~
+{document} `(string)`
+{charset} `(string?)`
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                           *cds.html.document()*
+                        `html.document`({body}, {opts})
+HTML as a shared document, preserving IDs, named anchors and link spans.
+page=true selects main/article/body; otherwise converts an HTML fragment.
+Parameters ~
+{body} `(string)`
+{opts} `(optional)` `({ base: string?, page: boolean?, charset: string? })`
+Return ~
+`(cds.Document)`
+`(string?)` title
+
+
+==============================================================================
+                                                                  *cds.entities*
+Decode HTML character references once, or encode a Unicode code point as UTF-8. XML readers may share the
+UTF-8 encoder while keeping their own named-entity rules.
+
+------------------------------------------------------------------------------
+                                                           *cds.entities.utf8()*
+                             `entities.utf8`({cp})
+A code point as UTF-8 (Lua 5.1 has no utf8 library).
+Parameters ~
+{cp} `(integer)`
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                       *cds.entities.entities()*
+                            `entities.entities`({s})
+Entities decoded, in one pass, so `&amp;lt;` is the text `&lt;`. An entity
+with no decoding (an unknown name, a number past U+10FFFF, a hex form with
+no hex digits) stays as written.
+Parameters ~
+{s} `(string)`
+Return ~
+`(string)`
+
+
+==============================================================================
+                                                                       *cds.uri*
+Resolve relative web links against a base URL, preserving queries for empty and fragment-only references.
+
+------------------------------------------------------------------------------
+                                                             *cds.uri.resolve()*
+                         `uri.resolve`({base}, {href})
+Resolves `href` against `base` (RFC 3986 section 5.2): an absolute href
+stands, `//host/x` takes the base's scheme, `/x` takes its scheme and
+host, anything else joins to the base path's directory; dot segments are
+removed and the href's own query and fragment are kept.
+Parameters ~
+{base} `(string an absolute http(s) URL)`
+{href} `(string)`
+Return ~
+`(string)`
+
+
+==============================================================================
+                                                                    *cds.vellum*
+Adapt vellum to lines, highlight/link spans, image-pending state and source block mappings. If unavailable or
+invalid, render returns nil so callers display Markdown. restyle invalidates theme state; forget permits
+another warning.
+
+------------------------------------------------------------------------------
+                                                           *cds.vellum.render()*
+                  `vellum.render`({markdown}, {width}, {opts})
+`markdown` (a list of lines) for a window `width` columns wide: the lines
+to show, the marks { lnum, col, end_col, hl, priority, link } that style
+them (lines counted from one and byte columns from zero; `link` the target
+of the link the span is part of), and whether some of it is a placeholder
+for output vellum is still rendering, so a render a moment later shows
+more; and vellum's block anchors, each `{ from, count, to, rows }`
+placing `count` Markdown lines past index `from` at `rows` drawn lines
+past `to` (both from zero). Nil when vellum is not installed, and nil
+with one warning when it is and cannot do this.
+Parameters ~
+{markdown} `(string[])`
+{width} `(integer)`
+{opts} `(optional)` `({ notify: function? })`
+Return ~
+`(string[]?)` lines
+`(table[]?)` marks
+`(boolean?)` waiting
+`(integer[][]?)` blocks
+
+------------------------------------------------------------------------------
+                                                          *cds.vellum.restyle()*
+                               `vellum.restyle`()
+A colorscheme clears the highlight groups: define them again on the next
+render.
+
+------------------------------------------------------------------------------
+                                                           *cds.vellum.forget()*
+                               `vellum.forget`()
+The reader is told again, once, should vellum still fail.
+
+
+==============================================================================
+                                                                 *cds.navigator*
+new() creates independent per-window history and pending-follow guards. follow(win, target, resolve, open)
+asks resolve(target, callback) for a destination. open(destination, error, done) calls done only when
+navigation lands. remember records other moves; pop returns a saved buffer name and view. jump maps a document
+anchor into a rendered buffer. forget cleans up a closed window; reset clears the session. URL fetching and
+RFC/help tag resolution remain caller-owned.
+
+------------------------------------------------------------------------------
+                                                           *cds.Navigator.new()*
+                               `Navigator.new`()
+An independent navigation session. Resolution and opening remain caller-owned.
+Return ~
+`(table)`
+
+
+==============================================================================
+                                                             *cds.document_view*
+new(deps) supplies show(model) and window_of(buf). Inject current(model), render(markdown, width), draw(buf,
+rendered), attach(buf), attach_window(win), image_wait(), group and filetype. The view retries pending images
+and watches resize and colorscheme events while the model remains current. The model carries buf and markdown;
+rendering writes doc, width and draws.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.DocumentModel}
+Fields ~
+{buf} `(integer)`
+{document} `(optional)` `(cds.Document)`
+{markdown} `(optional)` `(string[])`
+{doc} `(optional)` `(table)`
+{width} `(optional)` `(integer)`
+{draws} `(optional)` `(integer)`
+
+------------------------------------------------------------------------------
+                                                                *cds.View.new()*
+                               `View.new`({deps})
+Rendering lifecycle for a model carrying buf, markdown, doc and width.
+The caller supplies buffer policy and a model identity guard. Image retries
+and resize callbacks never draw a model that the caller considers stale.
+Parameters ~
+{deps} `(table)`
+Return ~
+`(table)`
 
 
  vim:tw=78:ts=8:noet:ft=help:norl:

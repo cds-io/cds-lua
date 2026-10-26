@@ -87,3 +87,41 @@ make site      # generate site/modules/*.md from annotations
 ## Licence
 
 MIT; see LICENSE.
+
+## Shared document readers
+
+`cds.html.document(body, { base = url, page = true })` returns a pure source
+contract: `{ markdown, anchors, links, url }` (and the page title as its second
+return). Anchors map original HTML IDs, named anchors, and generated heading
+slugs to **one-based Markdown lines**. Link spans use one-based lines and
+zero-based byte columns (`col` inclusive, `end_col` exclusive). Fragment links
+resolve against the base URL, preserving its query. Omit `page` for an HTML
+fragment; `page = true` selects main/article/body content. Selection and
+conversion never fetch a URL. Retain source-specific citation and tag policy
+in the consuming plugin.
+
+`cds.document.prepend(source, header)` shifts anchors when a plugin adds metadata.
+`cds.document.anchor(source, fragment, rendered)` maps an explicit or generated
+anchor through vellum's block mappings. When a block compresses or wraps several
+source lines, navigation lands at the start of that rendered block.
+
+`cds.vellum.render(source.markdown, width, { notify = notify })` returns lines,
+highlight/link spans, pending-media state, and source block mappings. It returns
+nil when vellum is absent or fails, allowing a plain Markdown fallback. The
+optional dependency stays optional. `restyle()` invalidates theme state.
+`cds.document_view.new(deps)` owns redraws and bounded image retries; its injected
+model guard prevents stale asynchronous rendering from changing another model.
+
+`cds.navigator.new()` creates independent per-window follow guards and history.
+`follow(win, target, resolve, open)` accepts web URLs or application tags: the
+plugin supplies `resolve(target, callback)` and `open(destination, error, done)`.
+Call `done()` only after the destination opens. `remember(win, move)` tracks other
+moves, `pop(win)` returns the previous buffer name/view, and `jump(win, source,
+rendered, fragment)` moves to a document anchor. Call `forget(win)` on window
+closure and `reset()` when discarding the session. Native help/tag resolution can
+remain in the resolver/open callbacks; the library does not rewrite RFC tags or
+install global key mappings.
+
+The document regressions include unchanged fixtures from rssfeedr and rfc.nvim;
+the shared library's tests require neither plugin. See
+`spec/fixtures/documents/README.md` for their provenance.
