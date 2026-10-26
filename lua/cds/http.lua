@@ -124,9 +124,11 @@ function M.config(req)
     "dump-header = " .. M.quote("-"),
     "max-time = " .. tostring(req.timeout or 30),
     "write-out = " .. M.quote(MARK .. "%{http_code} %{url_effective}"),
-    "request = " .. M.quote(req.method),
     "url = " .. M.quote(req.url),
   }
+  -- curl's own HEAD reads no body; a HEAD by name waits for the body the
+  -- content-length announces, which never comes, until max-time
+  table.insert(lines, req.method == "HEAD" and "head" or "request = " .. M.quote(req.method))
   for _, name in ipairs(vim.tbl_keys(req.headers or {})) do
     table.insert(lines, "header = " .. M.quote(name .. ": " .. req.headers[name]))
   end

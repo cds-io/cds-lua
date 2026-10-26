@@ -24,6 +24,13 @@ local FILES = {
   "activity",
   "datetime",
   "images",
+  "document",
+  "html",
+  "entities",
+  "uri",
+  "vellum",
+  "navigator",
+  "document_view",
 }
 
 ---@param block table   -- a mini.doc block: an array of sections
