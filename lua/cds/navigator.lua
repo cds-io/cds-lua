@@ -3,7 +3,8 @@
 ---@text
 --- new() creates independent per-window history and pending-follow guards. follow(win, target, resolve, open)
 --- asks resolve(target, callback) for a destination. open(destination, error, done) calls done only when
---- navigation lands. remember records other moves; pop returns a saved buffer name and view. jump maps a document
+--- navigation lands. remember records other moves; pop returns a saved buffer handle, name and
+--- view. jump maps a document
 --- anchor into a rendered buffer. forget cleans up a closed window; reset clears the session. URL fetching and
 --- RFC/help tag resolution remain caller-owned.
 
@@ -17,7 +18,7 @@ function Navigator.new()
   local stacks, following = {}, {}
   --- `entry` onto the stack of `win`.
   ---@param win integer
-  ---@param entry { name: string, view: vim.fn.winsaveview.ret }
+  ---@param entry { buf: integer?, name: string, view: vim.fn.winsaveview.ret }
   function M.push(win, entry)
     stacks[win] = stacks[win] or {}
     table.insert(stacks[win], entry)
@@ -34,6 +35,7 @@ function Navigator.new()
   function M.remember(win, move)
     local buf = vim.api.nvim_win_get_buf(win)
     local entry = {
+      buf = buf,
       name = vim.api.nvim_buf_get_name(buf),
       view = vim.api.nvim_win_call(win, vim.fn.winsaveview),
     }
@@ -50,7 +52,7 @@ function Navigator.new()
 
   --- The top of the stack of `win`, taken off; nil when it is empty.
   ---@param win integer
-  ---@return { name: string, view: vim.fn.winsaveview.ret }|nil
+  ---@return { buf: integer?, name: string, view: vim.fn.winsaveview.ret }|nil
   function M.pop(win)
     local stack = stacks[win]
     return stack and table.remove(stack)

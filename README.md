@@ -116,7 +116,7 @@ model guard prevents stale asynchronous rendering from changing another model.
 `follow(win, target, resolve, open)` accepts web URLs or application tags: the
 plugin supplies `resolve(target, callback)` and `open(destination, error, done)`.
 Call `done()` only after the destination opens. `remember(win, move)` tracks other
-moves, `pop(win)` returns the previous buffer name/view, and `jump(win, source,
+moves, `pop(win)` returns the previous buffer handle/name/view (the handle preserves unnamed buffers), and `jump(win, source,
 rendered, fragment)` moves to a document anchor. Call `forget(win)` on window
 closure and `reset()` when discarding the session. Native help/tag resolution can
 remain in the resolver/open callbacks; the library does not rewrite RFC tags or

@@ -1812,7 +1812,8 @@ The reader is told again, once, should vellum still fail.
                                                                  *cds.navigator*
 new() creates independent per-window history and pending-follow guards. follow(win, target, resolve, open)
 asks resolve(target, callback) for a destination. open(destination, error, done) calls done only when
-navigation lands. remember records other moves; pop returns a saved buffer name and view. jump maps a document
+navigation lands. remember records other moves; pop returns a saved buffer handle, name and
+view. jump maps a document
 anchor into a rendered buffer. forget cleans up a closed window; reset clears the session. URL fetching and
 RFC/help tag resolution remain caller-owned.
 
