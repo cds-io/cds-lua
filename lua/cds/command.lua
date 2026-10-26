@@ -66,6 +66,139 @@ local function present(spec, value, err, input)
   end
 end
 
+---@class cds.command.ActivityOptions
+---@field kind string
+---@field label string|fun(input: any): string
+---@field window? fun(input: any): integer? -- captured target; omit for tracking only
+
+-- Shared across compositors so overlapping commands in one window restore its
+-- original statusline only after the last operation finishes.
+local feedback = {}
+
+--- Combined Activity text for temporary command feedback in a window.
+---@param win integer
+---@return string
+function M.activity_segment(win)
+  local state = feedback[win]
+  if not state then
+    return ""
+  end
+  local parts = {}
+  for _, entry in ipairs(state.entries) do
+    local segment = entry.activity:segment()
+    if segment ~= "" then
+      parts[#parts + 1] = segment
+    end
+  end
+  return table.concat(parts, " · ")
+end
+
+---@param activity cds.Activity
+---@param win integer?
+---@return fun()
+local function show_activity(activity, win)
+  if not win or not vim.api.nvim_win_is_valid(win) then
+    return function() end
+  end
+  local state = feedback[win]
+  if not state then
+    local previous = vim.wo[win].statusline
+    state = {
+      previous = previous,
+      statusline = (previous ~= "" and previous or vim.go.statusline)
+        .. (" %%{v:lua.require('cds.command').activity_segment(%d)}"):format(win),
+      entries = {},
+    }
+    feedback[win] = state
+    vim.wo[win].statusline = state.statusline
+  end
+  local entry
+  for _, candidate in ipairs(state.entries) do
+    if candidate.activity == activity then
+      entry = candidate
+      break
+    end
+  end
+  if not entry then
+    entry = { activity = activity, count = 0 }
+    state.entries[#state.entries + 1] = entry
+  end
+  entry.count = entry.count + 1
+  return function()
+    entry.count = entry.count - 1
+    if entry.count == 0 then
+      for i, candidate in ipairs(state.entries) do
+        if candidate == entry then
+          table.remove(state.entries, i)
+          break
+        end
+      end
+    end
+    if #state.entries == 0 then
+      feedback[win] = nil
+      if vim.api.nvim_win_is_valid(win) and vim.wo[win].statusline == state.statusline then
+        vim.wo[win].statusline = state.previous
+      end
+    end
+  end
+end
+
+--- Return a shallow copy of spec with async work tracked by activity. The
+--- original spec and tracker are retained by reference, never deep-copied.
+--- Tracking covers run; read and present keep cds.command's usual boundaries.
+--- Returned errors and exceptions finish tracking before register reports them.
+--- An optional window callback enables temporary statusline feedback, restored
+--- after all overlapping commands finish. Closing the window is safe; a user's
+--- replacement statusline is preserved. The compositor never changes focus.
+---
+--- Capture buffer/window identities in read, before yielding. The plugin owns
+--- output rendering, validity checks and any decision to reopen a closed view.
+--- Omit window when using activity:segment() in a custom statusline instead.
+--- >lua
+---   local command = require("cds.command")
+---   local activity = require("cds.activity").new({ autocmd = "ExampleActivity" })
+---   command.register({ command.with_activity(activity, {
+---     kind = "fetch", label = function(input) return input.url end,
+---     window = function(input) return input.win end,
+---   }, {
+---     name = "ExampleFetch", nargs = 1,
+---     read = function(args)
+---       return { url = args.args, buf = vim.api.nvim_get_current_buf(), win = vim.api.nvim_get_current_win() }
+---     end,
+---     run = function(input) return require("cds.http").request({ url = input.url }) end,
+---     present = function(response, input)
+---       if vim.api.nvim_buf_is_valid(input.buf) then
+---         vim.api.nvim_buf_set_lines(input.buf, 0, -1, false, vim.split(response.body, "\n"))
+---       end
+---     end,
+---   }) })
+--- <
+---@param activity cds.Activity
+---@param opts cds.command.ActivityOptions
+---@param spec cds.command.Spec
+---@return cds.command.Spec
+function M.with_activity(activity, opts, spec)
+  local composed = vim.tbl_extend("force", {}, spec)
+  composed.async = true
+  composed.run = function(input)
+    local label = opts.label
+    if type(label) == "function" then
+      label = label(input)
+    end
+    local win = opts.window and opts.window(input) or nil
+    local id = activity:begin(opts.kind, label)
+    local release = show_activity(activity, win)
+    local ok, value, err = pcall(spec.run, input)
+    release()
+    activity:finish(id)
+    if not ok then
+      return nil, value
+    end
+    return value, err
+  end
+  return composed
+end
+
 --- Register commands with optional normal-mode mappings to their names.
 ---@param specs cds.command.Spec[]
 function M.register(specs)
