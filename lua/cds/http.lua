@@ -10,7 +10,7 @@
 ---   local Task = require("cds.task")
 ---   local http = require("cds.http")
 ---   local request = Task.new(function()
----     return http.request({ method = "GET", url = "https://example.com/" })
+---     return http.request({ method = "GET", url = "https://example.com/old-feed" })
 ---   end):ensure(function(response) return response.status == http.status.OK end,
 ---     function(response) return "HTTP " .. response.status end)
 ---
@@ -20,6 +20,9 @@
 ---     local message = type(err) == "table" and err.message or tostring(err)
 ---     vim.notify(message, vim.log.levels.ERROR)
 ---   else
+---     -- If /old-feed redirects to /feed.xml, this prints that final URL:
+---     -- https://example.com/feed.xml
+---     print(response.url)
 ---     print(response.body)
 ---   end
 --- <
@@ -27,6 +30,11 @@
 --- For a JSON GET, accept 200; a write may instead accept 201 or 204. A 201
 --- response may contain a body; 204 has no response content. A 5xx status may
 --- justify retrying, but retrying a write needs application-specific care.
+--- response.url is curl's effective URL after following redirects; without a
+--- redirect it is the requested URL. It is nil when the parsed curl write-out
+--- omits the URL or supplies an empty URL, such as older status-only output
+--- passed to parse or returned by a test double. Normal successful requests
+--- include it. Transport failures return nil, err instead of a Response.
 ---
 --- Options travel on curl's stdin via --config -, so credentials in headers
 --- or bodies do not appear in argv. Transfers use compression when offered,
@@ -49,7 +57,7 @@ local M = {}
 ---@field status integer
 ---@field headers table<string, string>   -- lower-cased names
 ---@field body string
----@field url string?                     -- the URL the response came from, after redirects
+---@field url string?                     -- final URL after redirects; nil if absent or empty in curl's write-out
 
 ---@class cds.http.Error
 ---@field kind "unreachable"|"timeout"|"interrupted"|"tls"|"curl"|"spawn"
