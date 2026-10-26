@@ -109,7 +109,7 @@ end
 ---@param width integer
 ---@param opts? { notify: function? }
 ---@return string[]? lines
----@return table[]? marks
+---@return cds.DocumentMark[]? marks
 ---@return boolean? waiting
 ---@return integer[][]? blocks
 function M.render(markdown, width, opts)

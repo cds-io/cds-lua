@@ -101,4 +101,67 @@ describe("shared document contract", function()
     assert.equals("https://x.test", document.link(doc, 1, 8))
     assert.is_nil(document.link(doc, 1, 0))
   end)
+  it("attaches IDs to immediately emitted rules rather than the following block", function()
+    local doc = html.document('<hr id="first"><h2 id="heading">Title</h2><hr id="last">')
+    assert.equals("---", doc.markdown[assert(document.anchor(doc, "first"))])
+    assert.equals("## Title", doc.markdown[assert(document.anchor(doc, "heading"))])
+    assert.equals(#doc.markdown, document.anchor(doc, "last"))
+    assert.equals("---", doc.markdown[document.anchor(doc, "last")])
+    local between = html.document('<p id="before">Before</p><hr id="sep"><p id="after">After</p>')
+    assert.equals("Before", between.markdown[between.anchors.before])
+    assert.equals("---", between.markdown[between.anchors.sep])
+    assert.equals("After", between.markdown[between.anchors.after])
+  end)
+  it("uses identical leftmost and cursor policies for source and rendered links", function()
+    local source = document.new({ "[first long text](https://a) [x](https://b)" })
+    local marks = {}
+    for i = #source.links, 1, -1 do
+      local link = source.links[i]
+      marks[#marks + 1] =
+        { lnum = link.lnum, col = link.col, end_col = link.end_col, link = link.target, hl = "Normal" }
+    end
+    local rendered = document.rendered(source, source.markdown, marks)
+    assert.equals("https://a", document.target(source, nil, 1, 0, { first = true }))
+    assert.equals("https://a", document.target(source, rendered, 1, 0, { first = true }))
+    for col = 0, #source.markdown[1] - 1 do
+      assert.equals(document.target(source, nil, 1, col), document.target(source, rendered, 1, col))
+    end
+    assert.equals("https://b", marks[1].link)
+    assert.equals("https://a", source.links[1].target)
+  end)
+
+  it("keeps enclosing image links and ignores code while accepting edited Markdown", function()
+    local source = document.new({ "[![alt](image.png)](https://outer)", "```md", "[code](https://code)", "```" })
+    assert.equals("https://outer", document.target(source, nil, 1, 5))
+    assert.equals("https://outer", document.target(source, nil, 1, 0, { first = true }))
+    assert.is_nil(document.target(source, nil, 3, 0, { first = true, line = source.markdown[3] }))
+    assert.equals("https://edited", document.target(source, nil, 1, 1, { line = "[new](https://edited)" }))
+    assert.equals("https://outer", source.links[2].target)
+  end)
+
+  it("builds presentation data without river-specific fields or input mutation", function()
+    local source = document.new({ "# Title" })
+    local shown = { "Styled title" }
+    local styled = document.rendered(source, shown, {}, true, { { 0, 1, 0, 1 } })
+    assert.is_true(styled.source == source)
+    assert.is_true(styled.styled)
+    assert.is_true(styled.waiting)
+    assert.same(shown, styled.lines)
+    assert.is_nil(styled.rows)
+    assert.is_nil(styled.folds)
+    local plain = document.rendered(source, nil, nil, true)
+    assert.is_false(plain.styled)
+    assert.is_false(plain.waiting)
+    assert.same({ "# Title" }, plain.lines)
+    assert.same({ "# Title" }, source.markdown)
+  end)
+  it("lets source adapters select body metadata without losing anchors to an omitted head end tag", function()
+    local input = '<html><head><title>Spec</title><body><header><h2 id="abstract">Abstract</h2></header>'
+      .. '<main><h2 id="intro">Intro</h2></main></body></html>'
+    local reader = html.document(input, { page = true })
+    assert.is_nil(reader.anchors.abstract)
+    local report = html.document(input, { page = true, region = "body", drop = { head = true, script = true } })
+    assert.equals("## Abstract", report.markdown[report.anchors.abstract])
+    assert.equals("## Intro", report.markdown[report.anchors.intro])
+  end)
 end)

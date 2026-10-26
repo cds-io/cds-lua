@@ -600,11 +600,21 @@ local function builder(blocks, opts)
     end
   end
 
+  local function remember_anchor(name, closing, attrs)
+    if not closing then
+      local id = attrs.id or (name == "a" and attrs.name)
+      if id and id ~= "" then
+        table.insert(b.anchors, id)
+      end
+    end
+  end
+
   ---@param name string
   ---@param closing boolean
   ---@param attrs table<string, string>
   function b.tag(name, closing, attrs)
     if b.row and not table_tags[name] then
+      remember_anchor(name, closing, attrs)
       -- Inside a row any other block separates words.
       if block_tags[name] or name == "br" then
         b.put(" ")
@@ -621,13 +631,16 @@ local function builder(blocks, opts)
           b.row.th = b.row.th or name == "th"
         end
       end
+      remember_anchor(name, closing, attrs)
       return
     end
     if name == "br" then
+      remember_anchor(name, closing, attrs)
       b.put(b.pre and "\n" or "\1")
       return
     end
     if not block_tags[name] then
+      remember_anchor(name, closing, attrs)
       b.inline(name, closing, attrs)
       return
     end
@@ -636,6 +649,7 @@ local function builder(blocks, opts)
     if not table_tags[name] then
       b.end_table()
     end
+    remember_anchor(name, closing, attrs)
     if table_tags[name] then
       if name == "table" then
         b.end_table()
@@ -752,12 +766,6 @@ function M.blocks(html, opts)
       else
         local attrs = closes and {} or attributes(rest)
         b.tag(value, closes, attrs)
-        if not closes then
-          local id = attrs.id or (value == "a" and attrs.name)
-          if id and id ~= "" then
-            table.insert(b.anchors, id)
-          end
-        end
       end
     end
   end
@@ -950,6 +958,8 @@ local regions = {
 }
 
 ---@class cds.html.PageOpts
+---@field region? "main"|"article"|"body" -- explicit content policy
+---@field drop? table<string, boolean> -- override dropped elements
 ---@field links? boolean -- preserve fragment and mail links
 ---@field base? string the page's address, which relative links and images resolve against
 ---@field charset? string the charset the document is written in, transcoded to UTF-8 first
@@ -982,10 +992,11 @@ function M.page(document, opts)
     base = base and discover.resolve(base, href) or href
   end
   local lines, anchors
-  for _, region in ipairs(regions) do
+  local selected = opts.region and { { name = opts.region, drop = opts.drop or site_chrome } } or regions
+  for _, region in ipairs(selected) do
     local content = first(document, region.name)
     if content then
-      lines, anchors = M.markdown(content, { base = base, drop = region.drop, links = opts.links })
+      lines, anchors = M.markdown(content, { base = base, drop = opts.drop or region.drop, links = opts.links })
     end
     if lines and #lines > 0 then
       local _, rest = start_tag(document, region.name)
@@ -1000,7 +1011,7 @@ function M.page(document, opts)
   local title = first(document, "title")
   title = title and trim((M.entities(title):gsub("%s+", " ")))
   if not lines then
-    lines, anchors = M.markdown(document, { base = base, drop = site_chrome, links = opts.links })
+    lines, anchors = M.markdown(document, { base = base, drop = opts.drop or site_chrome, links = opts.links })
   end
   return { title = title ~= "" and title or nil, lines = lines, anchors = next(anchors or {}) and anchors or nil }
 end
@@ -1109,19 +1120,23 @@ function M.transcode(document, charset)
   )
 end
 
+---@class cds.html.DocumentOptions: cds.html.PageOpts
+---@field page? boolean -- select document content rather than an HTML fragment
+
 --- HTML as a shared document, preserving IDs, named anchors and link spans.
 --- page=true selects main/article/body; otherwise converts an HTML fragment.
 ---@param body string
----@param opts? { base: string?, page: boolean?, charset: string? }
+---@param opts? cds.html.DocumentOptions
 ---@return cds.Document
 ---@return string? title
 function M.document(body, opts)
   opts = opts or {}
   if opts.page then
-    local page = M.page(body, { base = opts.base, charset = opts.charset, links = true })
+    local page =
+      M.page(body, { base = opts.base, charset = opts.charset, links = true, region = opts.region, drop = opts.drop })
     return source_document.new(page.lines, { anchors = page.anchors, url = opts.base }), page.title
   end
-  local lines, anchors = M.markdown(body, { base = opts.base, links = true })
+  local lines, anchors = M.markdown(body, { base = opts.base, links = true, drop = opts.drop })
   return source_document.new(lines, { anchors = anchors, url = opts.base })
 end
 

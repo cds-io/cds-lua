@@ -3,22 +3,47 @@
 ---@text
 --- new() creates independent per-window history and pending-follow guards. follow(win, target, resolve, open)
 --- asks resolve(target, callback) for a destination. open(destination, error, done) calls done only when
---- navigation lands. remember records other moves; pop returns a saved buffer handle, name and
---- view. jump maps a document
---- anchor into a rendered buffer. forget cleans up a closed window; reset clears the session. URL fetching and
---- RFC/help tag resolution remain caller-owned.
+--- navigation lands. remember records other moves; pop returns a saved buffer handle, name and view. jump maps
+--- a document anchor into a rendered buffer. jump, pop and remember cancel pending follows in that window.
+--- cancel(win) invalidates a follow for caller-owned navigation without discarding history. forget cleans up a
+--- closed window; reset clears the session. URL fetching and RFC/help tag resolution remain caller-owned.
+
+---@class cds.NavigationEntry
+---@field buf? integer
+---@field name string
+---@field view vim.fn.winsaveview.ret
+
+---@alias cds.ResolveDocument fun(target: string, done: fun(destination: any, err: any))
+---@alias cds.OpenDocument fun(destination: any, err: any, done: fun())
+
+---@class cds.Navigator
+---@field cancel fun(win: integer)
+---@field push fun(win: integer, entry: cds.NavigationEntry)
+---@field pop fun(win: integer): cds.NavigationEntry?
+---@field remember fun(win: integer, move: fun(done: fun()))
+---@field forget fun(win: integer)
+---@field reset fun()
+---@field follow fun(win: integer, target: string, resolve: cds.ResolveDocument, open: cds.OpenDocument)
+---@field jump fun(win: integer, source: cds.Document, rendered: cds.DocumentLayout?, fragment: string?): boolean
 
 local document = require("cds.document")
 local Navigator = {}
 
 --- An independent navigation session. Resolution and opening remain caller-owned.
----@return table
+---@return cds.Navigator
 function Navigator.new()
   local M = {}
   local stacks, following = {}, {}
+  --- Invalidate a pending follow in one window without discarding its history.
+  --- Call for navigation handled outside follow/jump/pop (for example an opener).
+  ---@param win integer
+  function M.cancel(win)
+    following[win] = nil
+  end
+
   --- `entry` onto the stack of `win`.
   ---@param win integer
-  ---@param entry { buf: integer?, name: string, view: vim.fn.winsaveview.ret }
+  ---@param entry cds.NavigationEntry
   function M.push(win, entry)
     stacks[win] = stacks[win] or {}
     table.insert(stacks[win], entry)
@@ -32,7 +57,7 @@ function Navigator.new()
   --- and a move that is both checked and done pushes once.
   ---@param win integer
   ---@param move fun(done: fun())
-  function M.remember(win, move)
+  local function remember(win, move)
     local buf = vim.api.nvim_win_get_buf(win)
     local entry = {
       buf = buf,
@@ -50,10 +75,19 @@ function Navigator.new()
     settle()
   end
 
+  --- Record a caller-owned move and cancel any earlier pending follow.
+  ---@param win integer
+  ---@param move fun(done: fun())
+  function M.remember(win, move)
+    M.cancel(win)
+    remember(win, move)
+  end
+
   --- The top of the stack of `win`, taken off; nil when it is empty.
   ---@param win integer
-  ---@return { buf: integer?, name: string, view: vim.fn.winsaveview.ret }|nil
+  ---@return cds.NavigationEntry?
   function M.pop(win)
+    M.cancel(win)
     local stack = stacks[win]
     return stack and table.remove(stack)
   end
@@ -80,7 +114,7 @@ function Navigator.new()
     end
     local this = { target = target, buf = buf }
     following[win] = this
-    M.remember(win, function(done)
+    remember(win, function(done)
       resolve(target, function(destination, err)
         if following[win] ~= this then
           return
@@ -97,10 +131,11 @@ function Navigator.new()
   --- Jump to a document anchor, recording the previous cursor in the jumplist.
   ---@param win integer
   ---@param source cds.Document
-  ---@param rendered table?
+  ---@param rendered cds.DocumentLayout?
   ---@param fragment string?
   ---@return boolean
   function M.jump(win, source, rendered, fragment)
+    M.cancel(win)
     local row = fragment and document.anchor(source, fragment, rendered)
     if not row then
       return false

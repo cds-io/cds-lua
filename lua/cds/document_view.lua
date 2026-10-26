@@ -10,17 +10,33 @@
 ---@field buf integer
 ---@field document? cds.Document
 ---@field markdown? string[]
----@field doc? table
+---@field doc? cds.RenderedDocument
 ---@field width? integer
 ---@field draws? integer
+
+local document = require("cds.document")
+
+---@class cds.DocumentViewDependencies
+---@field current fun(model: cds.DocumentModel): boolean
+---@field render fun(markdown: string[], width: integer): string[]?, cds.DocumentMark[]?, boolean?, integer[][]?
+---@field draw fun(buf: integer, rendered: cds.RenderedDocument)
+---@field attach fun(buf: integer)
+---@field attach_window fun(win: integer)
+---@field image_wait fun(): number
+---@field group string -- autocmd namespace owned by this presenter
+---@field filetype string -- styled rendering's filetype; Markdown is the fallback
+
+---@class cds.DocumentView
+---@field show fun(model: cds.DocumentModel)
+---@field window_of fun(buf: integer): integer
 
 local View = {}
 
 --- Rendering lifecycle for a model carrying buf, markdown, doc and width.
 --- The caller supplies buffer policy and a model identity guard. Image retries
 --- and resize callbacks never draw a model that the caller considers stale.
----@param deps table
----@return table
+---@param deps cds.DocumentViewDependencies
+---@return cds.DocumentView
 function View.new(deps)
   local M = {}
   --- The window showing `buf`; the current one when none does yet, as during
@@ -71,15 +87,7 @@ function View.new(deps)
       local lines, marks, blocks
       lines, marks, waiting, blocks = deps.render(markdown, width - 2)
       model.width = lines and width or nil
-      model.doc = {
-        lines = lines or markdown,
-        source = model.document,
-        marks = marks or {},
-        rows = {},
-        folds = {},
-        styled = lines ~= nil,
-        blocks = blocks,
-      }
+      model.doc = document.rendered(model.document or document.new(markdown), lines, marks, waiting, blocks)
       deps.draw(buf, model.doc)
       local filetype = lines and deps.filetype or "markdown"
       if vim.bo[buf].filetype ~= filetype then

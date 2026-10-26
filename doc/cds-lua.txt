@@ -1510,7 +1510,18 @@ Return ~
 
 ------------------------------------------------------------------------------
 Class ~
-{cds.DocumentLink}
+{cds.LinkSpan}
+Fields ~
+{lnum} `(integer)`
+{col} `(integer)`
+{end_col} `(integer)`
+{target} `(optional)` `(string)`
+{link} `(optional)` `(string)`
+{kind} `(optional)` `(string)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.DocumentLink:} cds.LinkSpan
 Fields ~
 {lnum} `(integer)` one-based Markdown line
 {col} `(integer)` zero-based byte column, inclusive
@@ -1549,13 +1560,72 @@ Return ~
 `(cds.Document)`
 
 ------------------------------------------------------------------------------
+Class ~
+{cds.DocumentMark:} cds.LinkSpan
+Fields ~
+{lnum} `(integer)` one-based rendered line
+{col} `(integer)` zero-based byte column, inclusive
+{end_col} `(integer)` zero-based byte column, exclusive
+{hl} `(string)`
+{priority} `(optional)` `(integer)`
+{link} `(optional)` `(string)`
+{kind} `(optional)` `(string)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.DocumentLayout}
+Fields ~
+{lines} `(string[])`
+{styled} `(optional)` `(boolean)`
+{blocks} `(optional)` `(integer[][])`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.RenderedDocument:} cds.DocumentLayout
+Fields ~
+{source} `(cds.Document)`
+{lines} `(string[])`
+{marks} `(cds.DocumentMark[])`
+{styled} `(boolean)`
+{waiting} `(boolean)`
+{blocks} `(optional)` `(integer[][])` { source offset, source count, rendered offset, rendered count }
+
+------------------------------------------------------------------------------
+                                                       *cds.document.rendered()*
+      `document.rendered`({source}, {lines}, {marks}, {waiting}, {blocks})
+A fresh presentation record; source and adapter results are never modified.
+Parameters ~
+{source} `(cds.Document)`
+{lines} `(optional)` `(string[])`
+{marks} `(optional)` `(cds.DocumentMark[])`
+{waiting} `(optional)` `(boolean)`
+{blocks} `(optional)` `(integer[][])`
+Return ~
+`(cds.RenderedDocument)`
+
+------------------------------------------------------------------------------
                                                            *cds.document.link()*
                       `document.link`({doc}, {row}, {col})
-The most specific link at a source position, links preferred over images.
+Source-position hit testing; enclosing links take precedence over images.
 Parameters ~
 {doc} `(cds.Document)`
 {row} `(integer)`
 {col} `(integer)`
+Return ~
+`(string?)`
+
+------------------------------------------------------------------------------
+                                                         *cds.document.target()*
+         `document.target`({source}, {rendered}, {row}, {col}, {opts})
+One selection policy for source and rendered links. first selects the
+leftmost span on the row; otherwise select the most specific cursor span.
+An optional live line supports editable Markdown without stale metadata.
+Parameters ~
+{source} `(cds.Document)`
+{rendered} `(cds.RenderedDocument?)`
+{row} `(integer)`
+{col} `(integer)`
+{opts} `(optional)` `({ first: boolean?, line: string? })`
 Return ~
 `(string?)`
 
@@ -1567,7 +1637,7 @@ A compressed block lands at its first rendered line, without guessing offsets.
 Parameters ~
 {doc} `(cds.Document)`
 {fragment} `(string)`
-{rendered} `(optional)` `({ styled: boolean?, blocks: integer[][]?, lines: string[] })`
+{rendered} `(optional)` `(cds.DocumentLayout)`
 Return ~
 `(integer?)`
 
@@ -1649,6 +1719,8 @@ Return ~
 Class ~
 {cds.html.PageOpts}
 Fields ~
+{region} `(optional)` `("main"|"article"|"body")` explicit content policy
+{drop} `(optional)` `(table<string, boolean>)` override dropped elements
 {links} `(optional)` `(boolean)` preserve fragment and mail links
 {base} `(optional)` `(string the page's address, which relative links and images resolve against)`
 {charset} `(optional)` `(string the charset the document is written in, transcoded to UTF-8 first)`
@@ -1712,13 +1784,19 @@ Return ~
 `(string)`
 
 ------------------------------------------------------------------------------
+Class ~
+{cds.html.DocumentOptions:} cds.html.PageOpts
+Fields ~
+{page} `(optional)` `(boolean)` select document content rather than an HTML fragment
+
+------------------------------------------------------------------------------
                                                            *cds.html.document()*
                         `html.document`({body}, {opts})
 HTML as a shared document, preserving IDs, named anchors and link spans.
 page=true selects main/article/body; otherwise converts an HTML fragment.
 Parameters ~
 {body} `(string)`
-{opts} `(optional)` `({ base: string?, page: boolean?, charset: string? })`
+{opts} `(optional)` `(cds.html.DocumentOptions)`
 Return ~
 `(cds.Document)`
 `(string?)` title
@@ -1792,7 +1870,7 @@ Parameters ~
 {opts} `(optional)` `({ notify: function? })`
 Return ~
 `(string[]?)` lines
-`(table[]?)` marks
+`(cds.DocumentMark[]?)` marks
 `(boolean?)` waiting
 `(integer[][]?)` blocks
 
@@ -1812,17 +1890,43 @@ The reader is told again, once, should vellum still fail.
                                                                  *cds.navigator*
 new() creates independent per-window history and pending-follow guards. follow(win, target, resolve, open)
 asks resolve(target, callback) for a destination. open(destination, error, done) calls done only when
-navigation lands. remember records other moves; pop returns a saved buffer handle, name and
-view. jump maps a document
-anchor into a rendered buffer. forget cleans up a closed window; reset clears the session. URL fetching and
-RFC/help tag resolution remain caller-owned.
+navigation lands. remember records other moves; pop returns a saved buffer handle, name and view. jump maps
+a document anchor into a rendered buffer. jump, pop and remember cancel pending follows in that window.
+cancel(win) invalidates a follow for caller-owned navigation without discarding history. forget cleans up a
+closed window; reset clears the session. URL fetching and RFC/help tag resolution remain caller-owned.
+
+------------------------------------------------------------------------------
+Class ~
+{cds.NavigationEntry}
+Fields ~
+{buf} `(optional)` `(integer)`
+{name} `(string)`
+{view} `(vim.fn.winsaveview.ret)`
+
+------------------------------------------------------------------------------
+Alias ~
+{cds.ResolveDocument} `(fun(target: string, done: fun(destination: any, err: any)))`
+{cds.OpenDocument} `(fun(destination: any, err: any, done: fun()))`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.Navigator}
+Fields ~
+{cancel} `(fun(win: integer))`
+{push} `(fun(win: integer, entry: cds.NavigationEntry))`
+{pop} `(fun(win: integer): cds.NavigationEntry?)`
+{remember} `(fun(win: integer, move: fun(done: fun())))`
+{forget} `(fun(win: integer))`
+{reset} `(fun())`
+{follow} `(fun(win: integer, target: string, resolve: cds.ResolveDocument, open: cds.OpenDocument))`
+{jump} `(fun(win: integer, source: cds.Document, rendered: cds.DocumentLayout?, fragment: string?): boolean)`
 
 ------------------------------------------------------------------------------
                                                            *cds.Navigator.new()*
                                `Navigator.new`()
 An independent navigation session. Resolution and opening remain caller-owned.
 Return ~
-`(table)`
+`(cds.Navigator)`
 
 
 ==============================================================================
@@ -1839,9 +1943,29 @@ Fields ~
 {buf} `(integer)`
 {document} `(optional)` `(cds.Document)`
 {markdown} `(optional)` `(string[])`
-{doc} `(optional)` `(table)`
+{doc} `(optional)` `(cds.RenderedDocument)`
 {width} `(optional)` `(integer)`
 {draws} `(optional)` `(integer)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.DocumentViewDependencies}
+Fields ~
+{current} `(fun(model: cds.DocumentModel): boolean)`
+{render} `(fun(markdown: string[], width: integer): string[]?, cds.DocumentMark[]?, boolean?, integer[][]?)`
+{draw} `(fun(buf: integer, rendered: cds.RenderedDocument))`
+{attach} `(fun(buf: integer))`
+{attach_window} `(fun(win: integer))`
+{image_wait} `(fun(): number)`
+{group} `(string)` autocmd namespace owned by this presenter
+{filetype} `(string)` styled rendering's filetype; Markdown is the fallback
+
+------------------------------------------------------------------------------
+Class ~
+{cds.DocumentView}
+Fields ~
+{show} `(fun(model: cds.DocumentModel))`
+{window_of} `(fun(buf: integer): integer)`
 
 ------------------------------------------------------------------------------
                                                                 *cds.View.new()*
@@ -1850,9 +1974,9 @@ Rendering lifecycle for a model carrying buf, markdown, doc and width.
 The caller supplies buffer policy and a model identity guard. Image retries
 and resize callbacks never draw a model that the caller considers stale.
 Parameters ~
-{deps} `(table)`
+{deps} `(cds.DocumentViewDependencies)`
 Return ~
-`(table)`
+`(cds.DocumentView)`
 
 
  vim:tw=78:ts=8:noet:ft=help:norl:

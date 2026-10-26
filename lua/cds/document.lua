@@ -139,7 +139,15 @@ function M.heading(markdown, fragment)
   return nil, nil
 end
 
----@class cds.DocumentLink
+---@class cds.LinkSpan
+---@field lnum integer
+---@field col integer
+---@field end_col integer
+---@field target? string
+---@field link? string
+---@field kind? string
+
+---@class cds.DocumentLink: cds.LinkSpan
 ---@field lnum integer -- one-based Markdown line
 ---@field col integer -- zero-based byte column, inclusive
 ---@field end_col integer -- zero-based byte column, exclusive
@@ -222,32 +230,114 @@ function M.prepend(doc, prefix)
   return M.new(lines, { anchors = anchors, url = doc.url })
 end
 
---- The most specific link at a source position, links preferred over images.
----@param doc cds.Document
+---@class cds.DocumentMark: cds.LinkSpan
+---@field lnum integer -- one-based rendered line
+---@field col integer -- zero-based byte column, inclusive
+---@field end_col integer -- zero-based byte column, exclusive
+---@field hl string
+---@field priority? integer
+---@field link? string
+---@field kind? string
+
+---@class cds.DocumentLayout
+---@field lines string[]
+---@field styled? boolean
+---@field blocks? integer[][]
+
+---@class cds.RenderedDocument: cds.DocumentLayout
+---@field source cds.Document
+---@field lines string[]
+---@field marks cds.DocumentMark[]
+---@field styled boolean
+---@field waiting boolean
+---@field blocks? integer[][] -- { source offset, source count, rendered offset, rendered count }
+
+--- A fresh presentation record; source and adapter results are never modified.
+---@param source cds.Document
+---@param lines? string[]
+---@param marks? cds.DocumentMark[]
+---@param waiting? boolean
+---@param blocks? integer[][]
+---@return cds.RenderedDocument
+function M.rendered(source, lines, marks, waiting, blocks)
+  return {
+    source = source,
+    lines = lines or source.markdown,
+    marks = marks or {},
+    styled = lines ~= nil,
+    waiting = lines ~= nil and waiting == true,
+    blocks = lines and blocks or nil,
+  }
+end
+
+---@param links cds.LinkSpan[]
 ---@param row integer
 ---@param col integer
+---@param first boolean?
 ---@return string?
-function M.link(doc, row, col)
+local function select_link(links, row, col, first)
   local best
-  for _, link in ipairs(doc.links) do
-    if link.lnum == row and link.col <= col and col < link.end_col then
+  for _, link in ipairs(links) do
+    if (link.target or link.link) and link.lnum == row and (first or link.col <= col and col < link.end_col) then
+      local earlier = best and first and link.col < best.col
+      local same = best and (not first or link.col == best.col)
+      local kind = link.kind or "link"
+      local previous = best and (best.kind or "link")
       if
         not best
-        or (best.kind == "image" and link.kind ~= "image")
-        or (best.kind == link.kind and link.end_col - link.col < best.end_col - best.col)
+        or earlier
+        or (
+          same
+          and (
+            (previous == "image" and kind ~= "image")
+            or (kind == previous and link.end_col - link.col < best.end_col - best.col)
+          )
+        )
       then
         best = link
       end
     end
   end
-  return best and best.target
+  return best and (best.target or best.link)
+end
+
+--- Source-position hit testing; enclosing links take precedence over images.
+---@param doc cds.Document
+---@param row integer
+---@param col integer
+---@return string?
+function M.link(doc, row, col)
+  return select_link(doc.links, row, col)
+end
+
+--- One selection policy for source and rendered links. first selects the
+--- leftmost span on the row; otherwise select the most specific cursor span.
+--- An optional live line supports editable Markdown without stale metadata.
+---@param source cds.Document
+---@param rendered cds.RenderedDocument?
+---@param row integer
+---@param col integer
+---@param opts? { first: boolean?, line: string? }
+---@return string?
+function M.target(source, rendered, row, col, opts)
+  opts = opts or {}
+  if rendered and rendered.styled then
+    return select_link(rendered.marks, row, col, opts.first)
+  end
+  if opts.line and opts.line ~= source.markdown[row] then
+    if not opts.first then
+      return M.link_at(opts.line, col)
+    end
+    return select_link(M.new({ opts.line }).links, 1, col, true)
+  end
+  return select_link(source.links, row, col, opts.first)
 end
 
 --- Resolve an explicit or generated anchor and map it through vellum's blocks.
 --- A compressed block lands at its first rendered line, without guessing offsets.
 ---@param doc cds.Document
 ---@param fragment string
----@param rendered? { styled: boolean?, blocks: integer[][]?, lines: string[] }
+---@param rendered? cds.DocumentLayout
 ---@return integer?
 function M.anchor(doc, fragment, rendered)
   local name = fragment:gsub("%%(%x%x)", function(hex)

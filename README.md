@@ -125,3 +125,26 @@ install global key mappings.
 The document regressions include unchanged fixtures from rssfeedr and rfc.nvim;
 the shared library's tests require neither plugin. See
 `spec/fixtures/documents/README.md` for their provenance.
+
+Navigation intent supersedes pending work in that window: `jump`, `pop`, and
+`remember` invalidate earlier follows automatically. Use `cancel(win)` for
+caller-owned navigation, such as sending a link to an external opener. It
+preserves history and leaves other windows' pending follows alone. A cancelled
+resolver may still finish caching its result, but its callback cannot open it.
+
+The display boundary is typed as `cds.DocumentViewDependencies`,
+`cds.DocumentModel`, and `cds.RenderedDocument`. The rendered record contains
+`source`, `lines`, `marks`, `styled`, `waiting`, and optional source `blocks`;
+river rows and folds remain consumer-owned. `cds.document.rendered(...)`
+constructs this record without modifying source or renderer inputs.
+
+`cds.document.target(source, rendered, row, col, opts)` applies one hit-testing
+policy to both formats. Positions use one-based rows and zero-based byte
+columns. `first = true` selects the leftmost link; otherwise the most specific
+cursor span wins, with enclosing links preferred over images. `line` may supply
+edited Markdown; unchanged source lines use compiled metadata, including code
+fence exclusions. The older `link` and `link_at` entry points remain available.
+
+HTML adapters may choose `region = "body"` with `page = true` and an explicit
+`drop` map when metadata outside main/article belongs to the source document.
+The default reader policy still prefers main, article, then body.

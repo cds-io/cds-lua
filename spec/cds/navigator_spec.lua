@@ -95,4 +95,54 @@ describe("document tag navigation", function()
     assert.equals("", entry.name)
     assert.equals(2, entry.view.lnum)
   end)
+  it("invalidates a pending follow on local jumps, history pops and remembered moves", function()
+    for _, intent in ipairs({
+      function()
+        nav.jump(win, document.new({ "# One", "# Two" }), nil, "two")
+      end,
+      function()
+        nav.pop(win)
+      end,
+      function()
+        nav.remember(win, function() end)
+      end,
+      function()
+        nav.cancel(win)
+      end,
+    }) do
+      local pending, opened
+      nav.follow(win, "pending", function(_, done)
+        pending = done
+      end, function()
+        opened = true
+      end)
+      intent()
+      pending(destination)
+      assert.is_nil(opened)
+      assert.equals(origin, vim.api.nvim_win_get_buf(win))
+    end
+  end)
+
+  it("cancels only the intended window and permits a new follow afterwards", function()
+    vim.cmd("vsplit")
+    local other = vim.api.nvim_get_current_win()
+    local pending, opened = {}, {}
+    local function begin(target_win)
+      nav.follow(target_win, "same", function(_, done)
+        pending[target_win] = done
+      end, function()
+        opened[target_win] = true
+      end)
+    end
+    begin(win)
+    begin(other)
+    nav.cancel(win)
+    pending[win](destination)
+    pending[other](destination)
+    assert.is_nil(opened[win])
+    assert.is_true(opened[other])
+    begin(win)
+    pending[win](destination)
+    assert.is_true(opened[win])
+  end)
 end)
