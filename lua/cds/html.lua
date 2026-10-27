@@ -21,15 +21,41 @@ local entities = require("cds.entities")
 M.entities = entities.entities
 local utf8 = entities.utf8
 
---- The attributes of a start tag's inside, in either quote.
+--- Start-tag attributes, quoted or unquoted. Ordinary tags decode entities
+--- and keep the last duplicate; charset sniffing keeps the first raw value.
+--- Scan boolean attributes too, so their names cannot consume the next value.
 ---@param s string
+---@param meta? boolean
 ---@return table<string, string>
-local function attributes(s)
-  local attrs = {}
-  for name, _, value in s:gmatch("([%w:%-_.]+)%s*=%s*([\"'])(.-)%2") do
-    attrs[name:lower()] = M.entities(value)
+local function attributes(s, meta)
+  local attrs, pos = {}, 1
+  while true do
+    local from, stop, name = s:find("([%w:%-_.]+)", pos)
+    if not from then
+      return attrs
+    end
+    pos = stop + 1
+    local equal = s:match("^%s*=()%s*", pos)
+    if equal then
+      pos = s:find("[^%s]", equal) or (#s + 1)
+      local quote = s:sub(pos, pos)
+      local value
+      if quote == '"' or quote == "'" then
+        local close = s:find(quote, pos + 1, true)
+        if not close then
+          return attrs
+        end
+        value, pos = s:sub(pos + 1, close - 1), close + 1
+      else
+        value = s:match("^[^%s>]*", pos)
+        pos = pos + #value
+      end
+      name = name:lower()
+      if not meta or attrs[name] == nil then
+        attrs[name] = meta and value or M.entities(value)
+      end
+    end
   end
-  return attrs
 end
 
 --- The position of the `>` that ends the tag opening at `from`, quotes
@@ -205,12 +231,13 @@ end
 ---@param html string
 ---@param name string
 ---@return string?
+---@return string? start-tag attributes
 local function first(html, name)
   local past, rest = start_tag(html, name)
   if not past then
     return nil
   end
-  return html:sub(past, end_tag(html, name, past, rest or "") - 1)
+  return html:sub(past, end_tag(html, name, past, rest or "") - 1), rest
 end
 
 -- The tags that start and end a block. Everything else is inline, and an
@@ -369,7 +396,7 @@ local function join(pieces)
   while i <= #pieces do
     local piece = pieces[i]
     if type(piece) == "table" then
-      local core = piece.core
+      local cores = { piece.core }
       i = i + 1
       while true do
         local j = i
@@ -380,10 +407,11 @@ local function join(pieces)
         if not (type(after) == "table" and after.kind == piece.kind) then
           break
         end
-        core = core .. table.concat(pieces, "", i, j - 1) .. after.core
+        table.insert(cores, table.concat(pieces, "", i, j - 1))
+        table.insert(cores, after.core)
         i = j + 1
       end
-      table.insert(out, delimiters[piece.kind] .. core .. delimiters[piece.kind])
+      table.insert(out, delimiters[piece.kind] .. table.concat(cores) .. delimiters[piece.kind])
     else
       table.insert(out, piece)
       i = i + 1
@@ -413,28 +441,12 @@ end
 ---@field links? boolean -- preserve fragment and mail links
 ---@field drop? table<string, boolean> the tags dropped with their contents; an article's by default
 
---- A block builder: the open text, the open inline spans, the open list
---- stack, the open table, and the modes a tag sets (a heading, a pre, a
---- table row, the blockquote depth).
----@param blocks cds.html.Block[]
+--- Inline content owns its pieces and spans. Span offsets index only buf;
+--- finishing or discarding content always resets both together.
 ---@param opts cds.html.Opts
-local function builder(blocks, opts)
-  local b = {
-    buf = {}, -- inline pieces, as join() reads them; `"\1"` stands for a br until the flush
-    open = {}, -- inline spans: { kind = string, from = integer, href? = string }
-    lists = {}, -- { ordered = boolean, n = integer }
-    quote = 0,
-    anchors = {},
-  }
-
-  local function emit(block)
-    block.anchors = #b.anchors > 0 and b.anchors or nil
-    b.anchors = {}
-    if b.quote > 0 then
-      block.quote = b.quote
-    end
-    table.insert(blocks, block)
-  end
+local function inline_builder(opts)
+  local b = {}
+  local buf, open = {}, {}
 
   --- The open inline text, collapsed, trimmed, with each br a newline and
   --- no more than one empty line in a row.
@@ -446,18 +458,13 @@ local function builder(blocks, opts)
 
   --- Markdown the builder writes, as it stands.
   function b.put(s)
-    table.insert(b.buf, s)
+    table.insert(buf, s)
   end
 
-  --- Text of the HTML: inside a pre as written (the flush decodes it),
-  --- elsewhere decoded and, outside a code span, escaped with its math kept.
+  --- Decoded HTML text, escaped outside code spans with its math kept.
   function b.text(s)
-    if b.pre then
-      b.put(s)
-      return
-    end
     s = M.entities(s)
-    for _, span in ipairs(b.open) do
+    for _, span in ipairs(open) do
       if span.kind == "code" then
         b.put(s)
         return
@@ -489,13 +496,13 @@ local function builder(blocks, opts)
   --- span takes the emphasis outside itself, so join() can write it as
   --- one with the emphasis either side. A span with no text leaves only
   --- its spaces.
-  function b.close(at)
-    for i = #b.open, at, -1 do
-      local span = table.remove(b.open, i)
+  local function close(at)
+    for i = #open, at, -1 do
+      local span = table.remove(open, i)
       local pieces = {}
-      for j = span.from, #b.buf do
-        table.insert(pieces, b.buf[j])
-        b.buf[j] = nil
+      for j = span.from, #buf do
+        table.insert(pieces, buf[j])
+        buf[j] = nil
       end
       local inner = span.kind == "link" and sole_emphasis(pieces)
       local lead, core, trail = join(pieces):match("^([%s\1]*)(.-)([%s\1]*)$")
@@ -516,9 +523,87 @@ local function builder(blocks, opts)
     end
   end
 
-  function b.close_all()
-    if #b.open > 0 then
-      b.close(1)
+  function b.tag(name, closing, attrs)
+    local kind = spans[name]
+    if kind then
+      local at
+      for i = #open, 1, -1 do
+        if open[i].kind == kind then
+          at = i
+          break
+        end
+      end
+      -- A second open link closes the first; emphasis may nest.
+      if at and (closing or kind == "link") then
+        close(at)
+      end
+      if not closing then
+        table.insert(open, { kind = kind, from = #buf + 1, href = trim(attrs.href or "") })
+      end
+    elseif name == "img" then
+      local alt = trim(attrs.alt or ""):gsub("%s+", " ")
+      local src = trim(attrs.src or "")
+      if src == "" then
+        b.put(inline(alt))
+        return
+      end
+      if opts.base then
+        src = discover.resolve(opts.base, src)
+      end
+      b.put("![" .. inline(alt) .. "](" .. destination(src) .. ")")
+    end
+  end
+
+  --- Finish one cell or block and start with fresh inline state. Raw mode
+  --- is for preformatted text, which never opens inline spans.
+  function b.finish(raw_text)
+    if not raw_text and #open > 0 then
+      close(1)
+    end
+    local text = raw_text and table.concat(buf) or text_of(buf)
+    b.reset()
+    return text
+  end
+
+  function b.reset()
+    buf, open = {}, {}
+  end
+
+  return b
+end
+
+--- A block builder: the open text, the open inline spans, the open list
+--- stack, the open table, and the modes a tag sets (a heading, a pre, a
+--- table row, the blockquote depth).
+---@param blocks cds.html.Block[]
+---@param opts cds.html.Opts
+local function builder(blocks, opts)
+  local content = inline_builder(opts)
+  -- Inline content belongs to the current cell when in_cell is true,
+  -- otherwise to the current block.
+  -- A cell requires a row; end_row closes its cell before emitting it.
+  -- Flush before changing block context; anchors wait for the next emit.
+  local b = {
+    lists = {}, -- { ordered = boolean, n = integer }
+    quote = 0,
+    anchors = {},
+  }
+
+  local function emit(block)
+    block.anchors = #b.anchors > 0 and b.anchors or nil
+    b.anchors = {}
+    if b.quote > 0 then
+      block.quote = b.quote
+    end
+    table.insert(blocks, block)
+  end
+
+  --- Raw pre text is decoded at flush; other text goes through inline parsing.
+  function b.text(text)
+    if b.pre then
+      content.put(text)
+    else
+      content.text(text)
     end
   end
 
@@ -527,19 +612,15 @@ local function builder(blocks, opts)
       b.pre = false
       local lang = b.lang
       b.lang = nil
-      local code = M.entities(table.concat(b.buf)):gsub("^\r?\n", ""):gsub("%s+$", "")
-      b.buf, b.open = {}, {}
+      local code = M.entities(content.finish(true)):gsub("^\r?\n", ""):gsub("%s+$", "")
       if code:find("%S") then
         emit({ kind = "pre", text = code, lang = lang })
       end
       return
     end
-    b.close_all()
-    local pieces = b.buf
-    b.buf = {}
+    local text = content.finish()
     local level = b.heading
     b.heading = nil
-    local text = text_of(pieces)
     if text == "" then
       return
     end
@@ -560,13 +641,11 @@ local function builder(blocks, opts)
   --- Ends the open cell: its text, on one line, `|` escaped.
   function b.cell()
     if not b.in_cell then
-      b.buf, b.open = {}, {}
+      content.reset()
       return
     end
     b.in_cell = false
-    b.close_all()
-    local text = text_of(b.buf):gsub("\n", " "):gsub("|", "\\|")
-    b.buf = {}
+    local text = content.finish():gsub("\n", " "):gsub("|", "\\|")
     table.insert(b.row.cells, text)
   end
 
@@ -617,7 +696,7 @@ local function builder(blocks, opts)
       remember_anchor(name, closing, attrs)
       -- Inside a row any other block separates words.
       if block_tags[name] or name == "br" then
-        b.put(" ")
+        content.put(" ")
       else
         b.inline(name, closing, attrs)
       end
@@ -636,7 +715,7 @@ local function builder(blocks, opts)
     end
     if name == "br" then
       remember_anchor(name, closing, attrs)
-      b.put(b.pre and "\n" or "\1")
+      content.put(b.pre and "\n" or "\1")
       return
     end
     if not block_tags[name] then
@@ -686,43 +765,14 @@ local function builder(blocks, opts)
     end
   end
 
-  --- An inline tag: a span tag opens or closes its span, and an image is a
-  --- token of its own. Inside a pre the text stays as the code wrote it,
-  --- and a `<code>` names the language.
+  --- Preformatted tags only supply a language; other tags are inline content.
   function b.inline(name, closing, attrs)
     if b.pre then
       if name == "code" and not closing then
         b.lang = b.lang or (attrs.class or ""):match("language%-([%w_+#.-]+)")
       end
-      return
-    end
-    local kind = spans[name]
-    if kind then
-      local at
-      for i = #b.open, 1, -1 do
-        if b.open[i].kind == kind then
-          at = i
-          break
-        end
-      end
-      -- A second open link closes the first; emphasis may nest.
-      if at and (closing or kind == "link") then
-        b.close(at)
-      end
-      if not closing then
-        table.insert(b.open, { kind = kind, from = #b.buf + 1, href = trim(attrs.href or "") })
-      end
-    elseif name == "img" then
-      local alt = trim(attrs.alt or ""):gsub("%s+", " ")
-      local src = trim(attrs.src or "")
-      if src == "" then
-        b.put(inline(alt))
-        return
-      end
-      if opts.base then
-        src = discover.resolve(opts.base, src)
-      end
-      b.put("![" .. inline(alt) .. "](" .. destination(src) .. ")")
+    else
+      content.tag(name, closing, attrs)
     end
   end
 
@@ -808,6 +858,7 @@ end
 --- has none), the separator, the body rows.
 ---@param rows cds.html.Block[]
 ---@return string[]
+---@return integer[] offsets zero-based output line for each source row
 local function table_lines(rows)
   local function line(cells)
     return "| " .. table.concat(cells, " | ") .. " |"
@@ -828,10 +879,12 @@ local function table_lines(rows)
     rule[i] = "---"
   end
   table.insert(lines, line(rule))
+  local offsets = head and { 0 } or {}
   for i = head and 2 or 1, #rows do
+    offsets[i] = #lines
     table.insert(lines, line(rows[i].cells))
   end
-  return lines
+  return lines, offsets
 end
 
 --- One block's lines, before its blockquote prefix.
@@ -886,7 +939,7 @@ function M.markdown(html, opts)
   local i, prev = 1, nil
   while i <= #blocks do
     local block = blocks[i]
-    local lines, table_rows
+    local lines, table_rows, row_offsets
     if block.kind == "row" then
       -- A run of rows is one table; a header row past its first starts the next.
       local rows, j = { block }, i + 1
@@ -894,7 +947,8 @@ function M.markdown(html, opts)
         table.insert(rows, blocks[j])
         j = j + 1
       end
-      lines, i, table_rows = table_lines(rows), j - 1, rows
+      lines, row_offsets = table_lines(rows)
+      i, table_rows = j - 1, rows
     else
       lines = render(block)
     end
@@ -905,18 +959,19 @@ function M.markdown(html, opts)
       local shared = math.min(depth, prev.quote or 0)
       put((string.rep("> ", shared):gsub("%s+$", "")))
     end
-    for _, id in ipairs(block.anchors or {}) do
-      if anchors[id] == nil then
-        anchors[id] = #out + 1
+    local function record(source, offset)
+      for _, id in ipairs(source.anchors or {}) do
+        if anchors[id] == nil then
+          anchors[id] = #out + 1 + offset
+        end
       end
     end
     if table_rows then
       for row, source in ipairs(table_rows) do
-        local offset = row == 1 and source.header and 0 or row + (table_rows[1].header and 0 or 1)
-        for _, id in ipairs(source.anchors or {}) do
-          anchors[id] = #out + 1 + offset
-        end
+        record(source, row_offsets[row])
       end
+    else
+      record(block, 0)
     end
     local prefix = string.rep("> ", depth)
     for _, line in ipairs(lines) do
@@ -994,12 +1049,11 @@ function M.page(document, opts)
   local lines, anchors
   local selected = opts.region and { { name = opts.region, drop = opts.drop or site_chrome } } or regions
   for _, region in ipairs(selected) do
-    local content = first(document, region.name)
+    local content, rest = first(document, region.name)
     if content then
       lines, anchors = M.markdown(content, { base = base, drop = opts.drop or region.drop, links = opts.links })
     end
     if lines and #lines > 0 then
-      local _, rest = start_tag(document, region.name)
       local id = rest and attributes(rest).id
       if id then
         anchors[id] = 1
@@ -1023,34 +1077,6 @@ local function charset_in(s)
   return s:lower():match("charset%s*=%s*[\"']?([^%s;\"'/>]+)")
 end
 
---- The attributes of a meta tag, quoted or not, each name's first; a
---- `<meta charset=utf-8>` is as common as the quoted form.
----@param s string
----@return table<string, string>
-local function meta_attributes(s)
-  local attrs, pos = {}, 1
-  while true do
-    local _, stop, name = s:find("([%w:%-_.]+)%s*=%s*", pos)
-    if not stop then
-      return attrs
-    end
-    local quote = s:sub(stop + 1, stop + 1)
-    local value
-    if quote == '"' or quote == "'" then
-      local close = s:find(quote, stop + 2, true)
-      if not close then
-        return attrs
-      end
-      value, pos = s:sub(stop + 2, close - 1), close + 1
-    else
-      value = s:match("^[^%s>]*", stop + 1)
-      pos = stop + 1 + #value
-    end
-    name = name:lower()
-    attrs[name] = attrs[name] or value
-  end
-end
-
 --- The charset a document is written in: the one its `Content-Type` header
 --- value names, else, in its first 2048 bytes, a meta's `charset` attribute
 --- or the `charset=` in the content of a meta whose `http-equiv` is
@@ -1064,7 +1090,7 @@ function M.charset(content_type, document)
     return label
   end
   for tag in (document or ""):sub(1, 2048):gmatch("<[Mm][Ee][Tt][Aa][%s/][^>]*>") do
-    local attrs = meta_attributes(tag:sub(6))
+    local attrs = attributes(tag:sub(6), true)
     if attrs.charset then
       label = attrs.charset:lower():match("^%s*([^%s;\"'/>]+)")
     elseif attrs["http-equiv"] and trim(attrs["http-equiv"]):lower() == "content-type" and attrs.content then
