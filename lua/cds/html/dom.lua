@@ -75,7 +75,8 @@ function M.parse(source, fragment)
   local ok, gumbo = pcall(require, "gumbo")
   if not ok then
     error(
-      "cds.html requires lua-gumbo for Lua 5.1/LuaJIT; install with "
+      "cds.html requires lua-gumbo for Lua 5.1/LuaJIT; run :Lazy sync and :Lazy build lua-gumbo "
+        .. "with rockspec support enabled. For manual installation, use "
         .. "`luarocks --lua-version=5.1 --local install gumbo 0.5-1` and add its tree to package.path/package.cpath.\n"
         .. tostring(gumbo),
       0
