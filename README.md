@@ -4,10 +4,9 @@ Build Neovim plugins that fetch data, handle failures, and refresh buffers
 without repeating asynchronous plumbing. `task` composes requests, parsing,
 and recovery before starting work; `http` separates transport failures from
 HTTP responses; `redraw` preserves the selected item when a listing changes;
-`activity` shows running operations in a statusline; `pick` owns a keyed floating
-selector, including focus restoration and teardown. `persist` handles atomic
-file/JSON writes, `scratch` owns persistent buffer/window views, `companion`
-attaches sidebars to specific editor windows, and `command` composes argument
+`activity` shows running operations in a statusline. `persist` handles atomic
+file/JSON writes, `companion` attaches sidebars to specific editor windows,
+and `command` composes argument
 reading, work, presentation, and error reporting. `command.with_activity` adds
 async execution, Activity tracking, and optional temporary window statusline
 feedback to a command spec, including cleanup on failure and overlapping runs.

@@ -82,9 +82,7 @@ including processes and shared document readers.
   Callback and native Task interop ............................... |cds.async|
   HTTP through curl ............................................... |cds.http|
   Preserving selection on refresh ............................... |cds.redraw|
-  Keyed floating selection ........................................ |cds.pick|
   File and JSON persistence .................................... |cds.persist|
-  Persistent scratch views ..................................... |cds.scratch|
   Window-owned companion views ............................... |cds.companion|
   Command orchestration ........................................ |cds.command|
   Tracking running work ....................................... |cds.activity|
@@ -617,65 +615,6 @@ Return ~
 
 
 ==============================================================================
-                                                                      *cds.pick*
-Select from a short list without putting window ownership, mappings and
-teardown in each plugin. The caller supplies items and their presentation;
-pick owns the temporary buffer and settles exactly once, including when
-the user leaves or closes the window. The callback runs on the next main
-loop turn, after teardown. Cancellation answers nil.
-
->lua
-  require("cds.pick").select({ "Local", "Mainnet" }, {
-    title = " Network ",
-  }, function(item)
-    if item then vim.notify("Selected " .. item) end
-  end)
-<
-format_item renders an item; selectable can mark a heading as unselectable.
-A single selectable item settles without opening a window. With more than
-26 items all keys have the same length, so no key shadows another's prefix.
-Escape and Ctrl-C cancel. Leaving the picker cancels without stealing focus.
-
-------------------------------------------------------------------------------
-Class ~
-{cds.pick.Options}
-Fields ~
-{title} `(string?)`
-{format_item} `(optional)` `(fun(item: any): string)`
-{selectable} `(optional)` `(fun(item: any): boolean)`
-{highlight} `(string?)` key highlight group; defaults to Special
-
-------------------------------------------------------------------------------
-Class ~
-{cds.pick.Handle}
-Fields ~
-{buf} `(integer)`
-{win} `(integer)`
-{close} `(fun())` cancel and restore the originating view, once
-
-------------------------------------------------------------------------------
-                                                               *cds.pick.keys()*
-                              `pick.keys`({count})
-Generate prefix-free selection keys in home-row-first order.
-Parameters ~
-{count} `(integer)`
-Return ~
-`(string[])`
-
-------------------------------------------------------------------------------
-                                                             *cds.pick.select()*
-                   `pick.select`({items}, {opts}, {callback})
-Show items in a temporary centered float. Returns its handles when a
-window is opened; empty or singleton selections only schedule the callback.
-Parameters ~
-{items} `(any[])`
-{opts} `(cds.pick.Options)`
-{callback} `(fun(item: any?))`
-Return ~
-`(cds.pick.Handle?)`
-
-
-==============================================================================
                                                                    *cds.persist*
 Read and write plugin state without owning the caller's model or save
 schedule. Every operation returns a value or nil, err. Writes create parent
@@ -747,105 +686,6 @@ Parameters ~
 Return ~
 `(any)` value
 `(string?)` err
-
-
-==============================================================================
-                                                                   *cds.scratch*
-Own a scratch buffer and the window displaying it. Hiding retains its
-contents; wiping it invalidates the handle and the next open recreates it.
-A window that has switched to another buffer is no longer owned. Reopening
-an existing view focuses it instead of creating another split.
-
->lua
-  local view = require("cds.scratch").new({
-    name = "[Example Results]", filetype = "markdown",
-    on_create = function(buf)
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Results" })
-    end,
-  })
-  view:open({ kind = "vsplit", size = 0.5 })
-  view:toggle() -- hide; a later toggle shows the same buffer
-<
-Content, folds and keymaps belong to the caller's hooks. on_show is also
-called when the buffer is displayed by native editor commands. No global
-mappings or commands are installed by a view. destroy releases the buffer
-and detaches windows displaying it. Other views are independent.
-
-------------------------------------------------------------------------------
-Class ~
-{cds.scratch.Options}
-Fields ~
-{name} `(string)`
-{filetype} `(string?)`
-{on_create} `(optional)` `(fun(buf: integer))`
-{on_show} `(optional)` `(fun(buf: integer, win: integer))`
-
-------------------------------------------------------------------------------
-Class ~
-{cds.scratch.Open}
-Fields ~
-{kind} `(optional)` `("split"|"vsplit"|"tab"|"float")`
-{size} `(number?)` split rows/columns, or a fraction of editor dimensions
-{float} `(table<string, any>?)` nvim_open_win options; function values are evaluated at open
-
-------------------------------------------------------------------------------
-Class ~
-{cds.Scratch}
-Fields ~
-{buf} `(integer?)`
-{win} `(integer?)`
-{opts} `(cds.scratch.Options)`
-{last} `(cds.scratch.Open)`
-
-------------------------------------------------------------------------------
-                                                             *cds.scratch.new()*
-                             `scratch.new`({opts})
-Make an independent, lazy view. No buffer or window is created yet.
-Parameters ~
-{opts} `(cds.scratch.Options)`
-Return ~
-`(cds.Scratch)`
-
-------------------------------------------------------------------------------
-                                                          *cds.Scratch:buffer()*
-                               `Scratch:buffer`()
-Get or create the owned buffer.
-Return ~
-`(integer)`
-
-------------------------------------------------------------------------------
-                                                          *cds.Scratch:window()*
-                               `Scratch:window`()
-Find a window still displaying the owned buffer.
-Return ~
-`(integer?)` win
-
-------------------------------------------------------------------------------
-                                                            *cds.Scratch:open()*
-                             `Scratch:open`({opts})
-Show the buffer or focus its existing window. Float dimensions are
-evaluated on each open; split dimensions are clamped to the editor.
-Parameters ~
-{opts} `(optional)` `(cds.scratch.Open)`
-Return ~
-`(integer)` win
-
-------------------------------------------------------------------------------
-                                                            *cds.Scratch:hide()*
-                                `Scratch:hide`()
-Hide the owned window, preserving the buffer and its text.
-
-------------------------------------------------------------------------------
-                                                          *cds.Scratch:toggle()*
-                            `Scratch:toggle`({opts})
-Hide an open view or reopen it with the supplied/last layout.
-Parameters ~
-{opts} `(optional)` `(cds.scratch.Open)`
-
-------------------------------------------------------------------------------
-                                                         *cds.Scratch:destroy()*
-                              `Scratch:destroy`()
-Release the owned buffer and its associated buffer-local autocmds.
 
 
 ==============================================================================
