@@ -77,7 +77,7 @@
 --- recipes below. This manual covers task, async, HTTP, redraw, activity,
 --- datetime, and images.
 --- The reference site https://cds-io.github.io/cds-lua/ covers every module,
---- including OAuth, secrets, and processes.
+--- including processes and shared document readers.
 ---
 ---@toc
 
