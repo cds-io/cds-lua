@@ -34,6 +34,37 @@ another manager, put both libraries on the runtimepath. Check the APIs your
 plugin uses at startup with `cds.needs`; the manual (`:help cds-lua`) shows the full check.
 It checks availability, not signatures or behavior, and complements your tests.
 
+### HTML parser dependency
+
+`cds.html` uses [lua-gumbo](https://gitlab.com/craigbarnes/lua-gumbo) as its only
+HTML parser. Other modules do not require it. Install the Lua 5.1 rock for
+Neovim's LuaJIT; a Lua 5.4 build is not compatible:
+
+```sh
+luarocks --lua-version=5.1 --local install gumbo 0.5-1
+```
+
+Building requires a C99 compiler and Lua 5.1 or LuaJIT development headers.
+On macOS, install the Xcode Command Line Tools (`xcode-select --install`) and
+LuaRocks with Lua 5.1/LuaJIT headers. On Linux, install a C toolchain, LuaRocks,
+and your distribution's Lua 5.1 development package (for example,
+`build-essential luarocks liblua5.1-0-dev` on Debian/Ubuntu).
+
+For a local rock installation, add its paths near the start of `init.lua`,
+before using HTML conversion:
+
+```lua
+local rocks = vim.fn.expand("~/.luarocks")
+package.path = rocks .. "/share/lua/5.1/?.lua;" .. rocks .. "/share/lua/5.1/?/init.lua;" .. package.path
+package.cpath = rocks .. "/lib/lua/5.1/?.so;" .. package.cpath
+```
+
+Use your actual rock tree instead of `~/.luarocks` if you installed elsewhere.
+Plugin managers that already expose that Lua 5.1 tree need no extra path setup.
+Check inside Neovim with `:lua print(require("gumbo").VERSION)`; the tested
+version is `0.5`. Missing or incompatible native modules produce an installation
+error when parsing is first requested; there is no fallback parser.
+
 ## Start with a small pipeline
 
 This example needs no network. A real producer can await a process or HTTP

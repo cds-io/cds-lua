@@ -9,6 +9,18 @@ local function fixture(name)
 end
 
 describe("shared document contract", function()
+  for _, entry in ipairs({
+    { "rssfeedr-page.html", "https://blog.nerdware.ca/2026/10/24/hot-singles-v1.html" },
+    { "rfc-css-grid-2.html", "https://www.w3.org/TR/css-grid-2/" },
+  }) do
+    it("preserves the complete fixture contract for " .. entry[1], function()
+      local expected = vim.json.decode(fixture(entry[1] .. ".document.json"))
+      local actual, title = html.document(fixture(entry[1]), { base = entry[2], page = true })
+      assert.same(expected.document, actual)
+      assert.equals(expected.title, title)
+    end)
+  end
+
   it("reads rssfeedr's real article with code and resolved links", function()
     local doc, title = html.document(fixture("rssfeedr-page.html"), {
       base = "https://blog.nerdware.ca/2026/10/24/hot-singles-v1.html",
@@ -163,5 +175,64 @@ describe("shared document contract", function()
     local report = html.document(input, { page = true, region = "body", drop = { head = true, script = true } })
     assert.equals("## Abstract", report.markdown[report.anchors.abstract])
     assert.equals("## Intro", report.markdown[report.anchors.intro])
+  end)
+
+  it("ignores code spans and escaped link openers in both link selection paths", function()
+    local line = "`[code](https://code)` ``[ticks](https://ticks) ` inside`` "
+      .. "\\[escaped](https://escaped) [real `label`](https://real) <https://bare>"
+    local doc = document.new({ line })
+    assert.equals(2, #doc.links)
+    for col = 0, #line - 1 do
+      assert.equals(document.link(doc, 1, col), document.link_at(line, col))
+    end
+    assert.equals("https://real", document.target(doc, nil, 1, 0, { first = true }))
+    assert.is_nil(document.link_at(line, 3))
+    local generated = html.document("<p><code>[example](https://example.org)</code></p>")
+    assert.same({}, generated.links)
+    assert.same({}, document.new({ "`<https://code>`" }).links)
+  end)
+
+  it("keeps info strings and short markers inside their enclosing code fence", function()
+    for _, mark in ipairs({ "`", "~" }) do
+      local fence = string.rep(mark, 4)
+      local lines = {
+        fence .. "md",
+        string.rep(mark, 3),
+        fence .. "lang",
+        "# Fake",
+        "[x](https://fake)",
+        fence .. "  ",
+        "# Real",
+        "[x](https://real)",
+      }
+      local doc = document.new(lines)
+      assert.is_nil(doc.anchors.fake)
+      assert.equals(7, doc.anchors.real)
+      assert.equals(1, #doc.links)
+      assert.equals("https://real", doc.links[1].target)
+      assert.is_nil(document.target(doc, nil, 5, 1, { line = "[edited](https://edited)" }))
+    end
+  end)
+
+  it("excludes links in multiline inline code emitted from HTML", function()
+    local source =
+      html.document('<p><code>first<br>[example](https://code)<br>last</code> <a href="https://real">real</a></p>')
+    assert.equals(1, #source.links)
+    assert.equals("https://real", source.links[1].target)
+    assert.is_nil(document.target(source, nil, 2, 1))
+    assert.is_nil(document.target(source, nil, 2, 1, { line = "[edited](https://edited)" }))
+    local unmatched = document.new({ "`not closed", "[real](https://real)", "", "`another paragraph" })
+    assert.equals("https://real", unmatched.links[1].target)
+    local mixed = document.new({ "``start", "` [fake](https://fake)", "end`` [real](https://real)" })
+    assert.equals(1, #mixed.links)
+    assert.equals("https://real", mixed.links[1].target)
+  end)
+
+  it("allocates names without changing caller slugs or duplicate suffix policies", function()
+    local bases = { "foo", "foo", "foo-1", "foo", "foo-2" }
+    assert.same({ "foo", "foo-1", "foo-1-1", "foo-2", "foo-2-1" }, document.unique_names(bases))
+    assert.same({ "foo", "foo-2", "foo-1", "foo-3", "foo-2-2" }, document.unique_names(bases, 2))
+    assert.same({ "foo", "foo", "foo-1", "foo", "foo-2" }, bases)
+    assert.same({}, document.unique_names({}))
   end)
 end)

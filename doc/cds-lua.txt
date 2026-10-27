@@ -24,6 +24,23 @@ explicitly so the vocabulary is available when cds-lua loads: >lua
 For a plugin you distribute, put this library spec in your plugin's
 dependencies. Other managers must put both libraries on the runtimepath.
 
+HTML conversion additionally requires the Lua 5.1 lua-gumbo rock and a C99
+compiler plus Lua 5.1/LuaJIT headers to build it: >sh
+
+  luarocks --lua-version=5.1 --local install gumbo 0.5-1
+<
+Expose the installed tree near the start of init.lua, unless your plugin
+manager already supplies its Lua 5.1 module paths: >lua
+
+  local rocks = vim.fn.expand("~/.luarocks")
+  package.path = rocks .. "/share/lua/5.1/?.lua;" .. rocks .. "/share/lua/5.1/?/init.lua;" .. package.path
+  package.cpath = rocks .. "/lib/lua/5.1/?.so;" .. package.cpath
+<
+Use your actual rock tree if installed elsewhere. Check inside Neovim with
+:lua print(require("gumbo").VERSION) (tested: 0.5). Other modules need no
+Gumbo installation. HTML parsing has no fallback backend; |cds.html|
+describes the HTML5 interpretation rules.
+
 Check the APIs your plugin uses before registering commands. A declaration
 can live in lua/example/needs.lua; this self-contained startup check uses
 the same table directly: >lua
@@ -57,21 +74,18 @@ success value. Procedures such as redraw.restore return no result.
 
 Start with the complete example under |cds.task|, then use the module
 recipes below. This manual covers task, async, HTTP, redraw, activity,
-datetime, and images.
+and images.
 The reference site https://cds-io.github.io/cds-lua/ covers every module,
-including OAuth, secrets, and processes.
+including processes and shared document readers.
 
   Tasks ........................................................... |cds.task|
   Callback and native Task interop ............................... |cds.async|
   HTTP through curl ............................................... |cds.http|
   Preserving selection on refresh ............................... |cds.redraw|
-  Keyed floating selection ........................................ |cds.pick|
   File and JSON persistence .................................... |cds.persist|
-  Persistent scratch views ..................................... |cds.scratch|
   Window-owned companion views ............................... |cds.companion|
   Command orchestration ........................................ |cds.command|
   Tracking running work ....................................... |cds.activity|
-  Calendar arithmetic and formatting .......................... |cds.datetime|
   Displaying inline images ...................................... |cds.images|
   Document source contract .................................... |cds.document|
   HTML to Markdown ................................................ |cds.html|
@@ -80,6 +94,7 @@ including OAuth, secrets, and processes.
   Optional vellum rendering ..................................... |cds.vellum|
   Document tag navigation .................................... |cds.navigator|
   Document display lifecycle ............................. |cds.document_view|
+  Window closing ................................................ |cds.window|
 
                                                                       *cds.task*
 A Task describes asynchronous work without starting it. Build a pipeline
@@ -600,65 +615,6 @@ Return ~
 
 
 ==============================================================================
-                                                                      *cds.pick*
-Select from a short list without putting window ownership, mappings and
-teardown in each plugin. The caller supplies items and their presentation;
-pick owns the temporary buffer and settles exactly once, including when
-the user leaves or closes the window. The callback runs on the next main
-loop turn, after teardown. Cancellation answers nil.
-
->lua
-  require("cds.pick").select({ "Local", "Mainnet" }, {
-    title = " Network ",
-  }, function(item)
-    if item then vim.notify("Selected " .. item) end
-  end)
-<
-format_item renders an item; selectable can mark a heading as unselectable.
-A single selectable item settles without opening a window. With more than
-26 items all keys have the same length, so no key shadows another's prefix.
-Escape and Ctrl-C cancel. Leaving the picker cancels without stealing focus.
-
-------------------------------------------------------------------------------
-Class ~
-{cds.pick.Options}
-Fields ~
-{title} `(string?)`
-{format_item} `(optional)` `(fun(item: any): string)`
-{selectable} `(optional)` `(fun(item: any): boolean)`
-{highlight} `(string?)` key highlight group; defaults to Special
-
-------------------------------------------------------------------------------
-Class ~
-{cds.pick.Handle}
-Fields ~
-{buf} `(integer)`
-{win} `(integer)`
-{close} `(fun())` cancel and restore the originating view, once
-
-------------------------------------------------------------------------------
-                                                               *cds.pick.keys()*
-                              `pick.keys`({count})
-Generate prefix-free selection keys in home-row-first order.
-Parameters ~
-{count} `(integer)`
-Return ~
-`(string[])`
-
-------------------------------------------------------------------------------
-                                                             *cds.pick.select()*
-                   `pick.select`({items}, {opts}, {callback})
-Show items in a temporary centered float. Returns its handles when a
-window is opened; empty or singleton selections only schedule the callback.
-Parameters ~
-{items} `(any[])`
-{opts} `(cds.pick.Options)`
-{callback} `(fun(item: any?))`
-Return ~
-`(cds.pick.Handle?)`
-
-
-==============================================================================
                                                                    *cds.persist*
 Read and write plugin state without owning the caller's model or save
 schedule. Every operation returns a value or nil, err. Writes create parent
@@ -730,105 +686,6 @@ Parameters ~
 Return ~
 `(any)` value
 `(string?)` err
-
-
-==============================================================================
-                                                                   *cds.scratch*
-Own a scratch buffer and the window displaying it. Hiding retains its
-contents; wiping it invalidates the handle and the next open recreates it.
-A window that has switched to another buffer is no longer owned. Reopening
-an existing view focuses it instead of creating another split.
-
->lua
-  local view = require("cds.scratch").new({
-    name = "[Example Results]", filetype = "markdown",
-    on_create = function(buf)
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Results" })
-    end,
-  })
-  view:open({ kind = "vsplit", size = 0.5 })
-  view:toggle() -- hide; a later toggle shows the same buffer
-<
-Content, folds and keymaps belong to the caller's hooks. on_show is also
-called when the buffer is displayed by native editor commands. No global
-mappings or commands are installed by a view. destroy releases the buffer
-and detaches windows displaying it. Other views are independent.
-
-------------------------------------------------------------------------------
-Class ~
-{cds.scratch.Options}
-Fields ~
-{name} `(string)`
-{filetype} `(string?)`
-{on_create} `(optional)` `(fun(buf: integer))`
-{on_show} `(optional)` `(fun(buf: integer, win: integer))`
-
-------------------------------------------------------------------------------
-Class ~
-{cds.scratch.Open}
-Fields ~
-{kind} `(optional)` `("split"|"vsplit"|"tab"|"float")`
-{size} `(number?)` split rows/columns, or a fraction of editor dimensions
-{float} `(table<string, any>?)` nvim_open_win options; function values are evaluated at open
-
-------------------------------------------------------------------------------
-Class ~
-{cds.Scratch}
-Fields ~
-{buf} `(integer?)`
-{win} `(integer?)`
-{opts} `(cds.scratch.Options)`
-{last} `(cds.scratch.Open)`
-
-------------------------------------------------------------------------------
-                                                             *cds.scratch.new()*
-                             `scratch.new`({opts})
-Make an independent, lazy view. No buffer or window is created yet.
-Parameters ~
-{opts} `(cds.scratch.Options)`
-Return ~
-`(cds.Scratch)`
-
-------------------------------------------------------------------------------
-                                                          *cds.Scratch:buffer()*
-                               `Scratch:buffer`()
-Get or create the owned buffer.
-Return ~
-`(integer)`
-
-------------------------------------------------------------------------------
-                                                          *cds.Scratch:window()*
-                               `Scratch:window`()
-Find a window still displaying the owned buffer.
-Return ~
-`(integer?)` win
-
-------------------------------------------------------------------------------
-                                                            *cds.Scratch:open()*
-                             `Scratch:open`({opts})
-Show the buffer or focus its existing window. Float dimensions are
-evaluated on each open; split dimensions are clamped to the editor.
-Parameters ~
-{opts} `(optional)` `(cds.scratch.Open)`
-Return ~
-`(integer)` win
-
-------------------------------------------------------------------------------
-                                                            *cds.Scratch:hide()*
-                                `Scratch:hide`()
-Hide the owned window, preserving the buffer and its text.
-
-------------------------------------------------------------------------------
-                                                          *cds.Scratch:toggle()*
-                            `Scratch:toggle`({opts})
-Hide an open view or reopen it with the supplied/last layout.
-Parameters ~
-{opts} `(optional)` `(cds.scratch.Open)`
-
-------------------------------------------------------------------------------
-                                                         *cds.Scratch:destroy()*
-                              `Scratch:destroy`()
-Release the owned buffer and its associated buffer-local autocmds.
 
 
 ==============================================================================
@@ -1174,176 +1031,6 @@ Forgets every run; for the specs.
 
 
 ==============================================================================
-                                                                  *cds.datetime*
-Does calendar arithmetic on local date/time values and formats them using
-patterns such as `yyyy-MM-dd` and `HH:mm`. A value is a table with year,
-month, day, and optional hour and min fields. These fields describe a
-calendar date and time, without a time zone or UTC offset. The module does
-not read the current clock or convert between named time zones.
-
-------------------------------------------------------------------------------
-Class ~
-{cds.DateTime}
-Fields ~
-{year} `(integer)`
-{month} `(integer)`
-{day} `(integer)`
-{hour} `(integer?)`
-{min} `(integer?)`
-
-------------------------------------------------------------------------------
-                                                  *cds.datetime.days_in_month()*
-                       `datetime.days_in_month`({y}, {m})
-Parameters ~
-{y} `(integer)`
-{m} `(integer)`
-Return ~
-`(integer)`
-
-------------------------------------------------------------------------------
-                                                       *cds.datetime.is_valid()*
-                       `datetime.is_valid`({y}, {m}, {d})
-Parameters ~
-{y} `(any)`
-{m} `(any)`
-{d} `(any)`
-Return ~
-`(boolean)`
-
-------------------------------------------------------------------------------
-                                                        *cds.datetime.to_time()*
-                            `datetime.to_time`({dt})
-Converts `dt`'s date to seconds since the epoch at noon, local time.
-Parameters ~
-{dt} `(cds.DateTime)`
-Return ~
-`(integer)`
-
-------------------------------------------------------------------------------
-                                                      *cds.datetime.from_time()*
-                           `datetime.from_time`({t})
-Reads the date of `t` in local time; the time of day is dropped.
-Parameters ~
-{t} `(integer)`
-Return ~
-`(cds.DateTime)`
-
-------------------------------------------------------------------------------
-                                                       *cds.datetime.add_days()*
-                         `datetime.add_days`({dt}, {n})
-Parameters ~
-{dt} `(cds.DateTime)`
-{n} `(integer)`
-Return ~
-`(cds.DateTime)` same hour and min as `dt`
-
-------------------------------------------------------------------------------
-                                                        *cds.datetime.weekday()*
-                            `datetime.weekday`({dt})
-Answers the ISO weekday: 1 is Monday, 7 is Sunday.
-Parameters ~
-{dt} `(cds.DateTime)`
-Return ~
-`(integer)`
-
-------------------------------------------------------------------------------
-                                                  *cds.datetime.start_of_week()*
-                  `datetime.start_of_week`({dt}, {first_day})
-Finds the first day of the week `dt` is in.
-Parameters ~
-{dt} `(cds.DateTime)`
-{first_day} `("monday"|"sunday")`
-Return ~
-`(cds.DateTime)` date only
-
-------------------------------------------------------------------------------
-                                                   *cds.datetime.next_weekday()*
-                      `datetime.next_weekday`({dt}, {wd})
-Finds the next date strictly after `dt` that falls on `wd`.
-Parameters ~
-{dt} `(cds.DateTime)`
-{wd} `(integer)` ISO weekday
-Return ~
-`(cds.DateTime)` date only
-
-------------------------------------------------------------------------------
-                                                    *cds.datetime.add_minutes()*
-                    `datetime.add_minutes`({dt}, {minutes})
-Adds minutes, crossing midnight through add_days.
-Parameters ~
-{dt} `(cds.DateTime)`
-{minutes} `(integer)`
-Return ~
-`(cds.DateTime)`
-
-------------------------------------------------------------------------------
-                                                      *cds.datetime.date_only()*
-                           `datetime.date_only`({dt})
-Parameters ~
-{dt} `(cds.DateTime)`
-Return ~
-`(cds.DateTime)`
-
-------------------------------------------------------------------------------
-                                                      *cds.datetime.with_time()*
-                   `datetime.with_time`({dt}, {hour}, {min})
-Parameters ~
-{dt} `(cds.DateTime)`
-{hour} `(integer)`
-{min} `(integer)`
-Return ~
-`(cds.DateTime)`
-
-------------------------------------------------------------------------------
-                                                        *cds.datetime.compare()*
-                          `datetime.compare`({a}, {b})
-Orders two values; a missing time counts as midnight.
-Parameters ~
-{a} `(cds.DateTime)`
-{b} `(cds.DateTime)`
-Return ~
-`(integer)` -1, 0 or 1
-
-------------------------------------------------------------------------------
-Class ~
-{cds.datetime.Format}
-Fields ~
-{parts} `(table[])` { token = <name> } or { literal = <text> }
-{pattern} `(string)` a Lua pattern matching the whole text
-
-------------------------------------------------------------------------------
-                                                        *cds.datetime.compile()*
-                          `datetime.compile`({format})
-Checks a format once. An unknown token is the error, so a typo in
-configuration fails at setup, never at parse time.
-Parameters ~
-{format} `(string)`
-Return ~
-`(cds.datetime.Format?)` compiled
-`(string?)` err
-
-------------------------------------------------------------------------------
-                                                         *cds.datetime.format()*
-                       `datetime.format`({dt}, {format})
-Parameters ~
-{dt} `(cds.DateTime)`
-{format} `(string|cds.datetime.Format)`
-Return ~
-`(string)`
-
-------------------------------------------------------------------------------
-                                                          *cds.datetime.parse()*
-                       `datetime.parse`({text}, {format})
-Reads `text` as `format`, whole. The result holds only the fields the
-format names; a date's validity is the caller's check (is_valid).
-Parameters ~
-{text} `(string)`
-{format} `(string|cds.datetime.Format)`
-Return ~
-`(cds.DateTime?)` dt
-
-
-==============================================================================
                                                                     *cds.images*
 Displays images below buffer lines through an optional image plugin.
 Call place with a buffer, window, row, image URL or file path, and maximum
@@ -1470,7 +1157,8 @@ Parameters ~
                                                                   *cds.document*
 Pure Markdown documents carry one-based anchor rows and link spans with zero-based byte columns. Explicit HTML
 anchors take precedence over generated heading slugs. Renderers preserve this source document and map its rows
-through their block anchors.
+through their block anchors. Link scanning excludes inline code and escaped delimiters; fenced code is
+excluded from both link and heading metadata.
 
 ------------------------------------------------------------------------------
                                                         *cds.document.link_at()*
@@ -1484,6 +1172,17 @@ Parameters ~
 {col} `(integer)`
 Return ~
 `(string|nil)`
+
+------------------------------------------------------------------------------
+                                                   *cds.document.unique_names()*
+                   `document.unique_names`({bases}, {first})
+Allocate unique names in input order without modifying the bases. Callers
+supply their own slugs/prefixes and the first duplicate suffix (default 1).
+Parameters ~
+{bases} `(string[])`
+{first} `(optional)` `(integer)`
+Return ~
+`(string[])`
 
 ------------------------------------------------------------------------------
                                                            *cds.document.slug()*
@@ -1619,7 +1318,8 @@ Return ~
          `document.target`({source}, {rendered}, {row}, {col}, {opts})
 One selection policy for source and rendered links. first selects the
 leftmost span on the row; otherwise select the most specific cursor span.
-An optional live line supports editable Markdown without stale metadata.
+An optional live line supports editable Markdown without stale metadata,
+retaining the surrounding source document's code-fence context.
 Parameters ~
 {source} `(cds.Document)`
 {rendered} `(cds.RenderedDocument?)`
@@ -1646,7 +1346,10 @@ Return ~
                                                                       *cds.html*
 Convert an HTML fragment or page into a document for Markdown or vellum. document(body, { base = url, page =
 true }) retains explicit IDs and named anchors; page selection prefers main, article, then body. Conversion is
-pure and fetching remains caller-owned.
+pure and fetching remains caller-owned. HTML parsing requires lua-gumbo 0.5 for Lua 5.1/LuaJIT.
+Gumbo supplies HTML5 nesting, first duplicate attributes and decoded text; Markdown policy stays in Lua.
+Unclosed formatting and links follow the repaired DOM across block boundaries. A pre's leading newline
+is removed only by HTML5 parsing, not again by the renderer.
 
 ------------------------------------------------------------------------------
                                                                *cds.html.code()*
@@ -1681,6 +1384,7 @@ Fields ~
 {lang} `(optional)` `(string)` a pre block's language, from `<code class="language-x">`
 {cells} `(optional)` `(string[])` a row's cells, inline Markdown, `|` escaped
 {header} `(optional)` `(boolean)` a row standing as its table's header
+{table} `(optional)` `(integer)` identifies rows belonging to one table
 
 ------------------------------------------------------------------------------
 Class ~
@@ -1730,7 +1434,7 @@ Class ~
 {cds.html.Page}
 Fields ~
 {title} `(optional)` `(string the document's title, entities decoded and whitespace flattened)`
-{anchors} `(table<string, integer>)`
+{anchors} `(optional)` `(table<string, integer>)`
 {lines} `(string[] the content region as Markdown)`
 
 ------------------------------------------------------------------------------
@@ -1745,7 +1449,7 @@ its links and images resolve against the href of the document's first
 has none.
 Parameters ~
 {document} `(string)`
-{opts} `(cds.html.PageOpts)`
+{opts} `(optional)` `(cds.html.PageOpts)`
 Return ~
 `(cds.html.Page)`
 
@@ -1934,7 +1638,7 @@ Return ~
 new(deps) supplies show(model) and window_of(buf). Inject current(model), render(markdown, width), draw(buf,
 rendered), attach(buf), attach_window(win), image_wait(), group and filetype. The view retries pending images
 and watches resize and colorscheme events while the model remains current. The model carries buf and markdown;
-rendering writes doc, width and draws.
+rendering writes doc, width and draws. Hidden image retries resume on entry without restarting an exhausted budget.
 
 ------------------------------------------------------------------------------
 Class ~
@@ -1977,6 +1681,22 @@ Parameters ~
 {deps} `(cds.DocumentViewDependencies)`
 Return ~
 `(cds.DocumentView)`
+
+
+==============================================================================
+                                                                    *cds.window*
+close_or(win, fallback) closes a split or floating window. When win is the tab's last normal window,
+run fallback in that window instead. Floats do not count as normal windows; callers own buffer policy.
+
+------------------------------------------------------------------------------
+                                                         *cds.window.close_or()*
+                      `window.close_or`({win}, {fallback})
+Close a window when possible, or run the caller's last-window action in it.
+Parameters ~
+{win} `(integer)`
+{fallback} `(fun())`
+Return ~
+`(boolean)` closed
 
 
  vim:tw=78:ts=8:noet:ft=help:norl:

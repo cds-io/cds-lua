@@ -30,32 +30,4 @@ function M.new(script)
   return fake
 end
 
---- An in-memory cds.secrets.Store, with an optional `fail` message that
---- makes every call answer nil, fail.
----@return table store
-function M.store()
-  local store = { items = {}, fail = nil }
-  function store.get(name)
-    if store.fail then
-      return nil, store.fail
-    end
-    return store.items[name], nil
-  end
-  function store.set(name, value)
-    if store.fail then
-      return nil, store.fail
-    end
-    store.items[name] = value
-    return true
-  end
-  function store.delete(name)
-    if store.fail then
-      return nil, store.fail
-    end
-    store.items[name] = nil
-    return true
-  end
-  return store
-end
-
 return M
