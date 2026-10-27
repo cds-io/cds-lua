@@ -74,7 +74,7 @@ success value. Procedures such as redraw.restore return no result.
 
 Start with the complete example under |cds.task|, then use the module
 recipes below. This manual covers task, async, HTTP, redraw, activity,
-datetime, and images.
+and images.
 The reference site https://cds-io.github.io/cds-lua/ covers every module,
 including processes and shared document readers.
 
@@ -88,7 +88,6 @@ including processes and shared document readers.
   Window-owned companion views ............................... |cds.companion|
   Command orchestration ........................................ |cds.command|
   Tracking running work ....................................... |cds.activity|
-  Calendar arithmetic and formatting .......................... |cds.datetime|
   Displaying inline images ...................................... |cds.images|
   Document source contract .................................... |cds.document|
   HTML to Markdown ................................................ |cds.html|
@@ -1189,176 +1188,6 @@ Return ~
                                                           *cds.Activity:reset()*
                                `Activity:reset`()
 Forgets every run; for the specs.
-
-
-==============================================================================
-                                                                  *cds.datetime*
-Does calendar arithmetic on local date/time values and formats them using
-patterns such as `yyyy-MM-dd` and `HH:mm`. A value is a table with year,
-month, day, and optional hour and min fields. These fields describe a
-calendar date and time, without a time zone or UTC offset. The module does
-not read the current clock or convert between named time zones.
-
-------------------------------------------------------------------------------
-Class ~
-{cds.DateTime}
-Fields ~
-{year} `(integer)`
-{month} `(integer)`
-{day} `(integer)`
-{hour} `(integer?)`
-{min} `(integer?)`
-
-------------------------------------------------------------------------------
-                                                  *cds.datetime.days_in_month()*
-                       `datetime.days_in_month`({y}, {m})
-Parameters ~
-{y} `(integer)`
-{m} `(integer)`
-Return ~
-`(integer)`
-
-------------------------------------------------------------------------------
-                                                       *cds.datetime.is_valid()*
-                       `datetime.is_valid`({y}, {m}, {d})
-Parameters ~
-{y} `(any)`
-{m} `(any)`
-{d} `(any)`
-Return ~
-`(boolean)`
-
-------------------------------------------------------------------------------
-                                                        *cds.datetime.to_time()*
-                            `datetime.to_time`({dt})
-Converts `dt`'s date to seconds since the epoch at noon, local time.
-Parameters ~
-{dt} `(cds.DateTime)`
-Return ~
-`(integer)`
-
-------------------------------------------------------------------------------
-                                                      *cds.datetime.from_time()*
-                           `datetime.from_time`({t})
-Reads the date of `t` in local time; the time of day is dropped.
-Parameters ~
-{t} `(integer)`
-Return ~
-`(cds.DateTime)`
-
-------------------------------------------------------------------------------
-                                                       *cds.datetime.add_days()*
-                         `datetime.add_days`({dt}, {n})
-Parameters ~
-{dt} `(cds.DateTime)`
-{n} `(integer)`
-Return ~
-`(cds.DateTime)` same hour and min as `dt`
-
-------------------------------------------------------------------------------
-                                                        *cds.datetime.weekday()*
-                            `datetime.weekday`({dt})
-Answers the ISO weekday: 1 is Monday, 7 is Sunday.
-Parameters ~
-{dt} `(cds.DateTime)`
-Return ~
-`(integer)`
-
-------------------------------------------------------------------------------
-                                                  *cds.datetime.start_of_week()*
-                  `datetime.start_of_week`({dt}, {first_day})
-Finds the first day of the week `dt` is in.
-Parameters ~
-{dt} `(cds.DateTime)`
-{first_day} `("monday"|"sunday")`
-Return ~
-`(cds.DateTime)` date only
-
-------------------------------------------------------------------------------
-                                                   *cds.datetime.next_weekday()*
-                      `datetime.next_weekday`({dt}, {wd})
-Finds the next date strictly after `dt` that falls on `wd`.
-Parameters ~
-{dt} `(cds.DateTime)`
-{wd} `(integer)` ISO weekday
-Return ~
-`(cds.DateTime)` date only
-
-------------------------------------------------------------------------------
-                                                    *cds.datetime.add_minutes()*
-                    `datetime.add_minutes`({dt}, {minutes})
-Adds minutes, crossing midnight through add_days.
-Parameters ~
-{dt} `(cds.DateTime)`
-{minutes} `(integer)`
-Return ~
-`(cds.DateTime)`
-
-------------------------------------------------------------------------------
-                                                      *cds.datetime.date_only()*
-                           `datetime.date_only`({dt})
-Parameters ~
-{dt} `(cds.DateTime)`
-Return ~
-`(cds.DateTime)`
-
-------------------------------------------------------------------------------
-                                                      *cds.datetime.with_time()*
-                   `datetime.with_time`({dt}, {hour}, {min})
-Parameters ~
-{dt} `(cds.DateTime)`
-{hour} `(integer)`
-{min} `(integer)`
-Return ~
-`(cds.DateTime)`
-
-------------------------------------------------------------------------------
-                                                        *cds.datetime.compare()*
-                          `datetime.compare`({a}, {b})
-Orders two values; a missing time counts as midnight.
-Parameters ~
-{a} `(cds.DateTime)`
-{b} `(cds.DateTime)`
-Return ~
-`(integer)` -1, 0 or 1
-
-------------------------------------------------------------------------------
-Class ~
-{cds.datetime.Format}
-Fields ~
-{parts} `(table[])` { token = <name> } or { literal = <text> }
-{pattern} `(string)` a Lua pattern matching the whole text
-
-------------------------------------------------------------------------------
-                                                        *cds.datetime.compile()*
-                          `datetime.compile`({format})
-Checks a format once. An unknown token is the error, so a typo in
-configuration fails at setup, never at parse time.
-Parameters ~
-{format} `(string)`
-Return ~
-`(cds.datetime.Format?)` compiled
-`(string?)` err
-
-------------------------------------------------------------------------------
-                                                         *cds.datetime.format()*
-                       `datetime.format`({dt}, {format})
-Parameters ~
-{dt} `(cds.DateTime)`
-{format} `(string|cds.datetime.Format)`
-Return ~
-`(string)`
-
-------------------------------------------------------------------------------
-                                                          *cds.datetime.parse()*
-                       `datetime.parse`({text}, {format})
-Reads `text` as `format`, whole. The result holds only the fields the
-format names; a date's validity is the caller's check (is_valid).
-Parameters ~
-{text} `(string)`
-{format} `(string|cds.datetime.Format)`
-Return ~
-`(cds.DateTime?)` dt
 
 
 ==============================================================================

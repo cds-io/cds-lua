@@ -75,7 +75,7 @@
 ---
 --- Start with the complete example under |cds.task|, then use the module
 --- recipes below. This manual covers task, async, HTTP, redraw, activity,
---- datetime, and images.
+--- and images.
 --- The reference site https://cds-io.github.io/cds-lua/ covers every module,
 --- including processes and shared document readers.
 ---

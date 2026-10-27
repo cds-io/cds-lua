@@ -22,7 +22,6 @@ local FILES = {
   "companion",
   "command",
   "activity",
-  "datetime",
   "images",
   "document",
   "html",
