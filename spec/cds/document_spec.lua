@@ -201,4 +201,26 @@ describe("shared document contract", function()
       assert.is_nil(document.target(doc, nil, 5, 1, { line = "[edited](https://edited)" }))
     end
   end)
+
+  it("excludes links in multiline inline code emitted from HTML", function()
+    local source =
+      html.document('<p><code>first<br>[example](https://code)<br>last</code> <a href="https://real">real</a></p>')
+    assert.equals(1, #source.links)
+    assert.equals("https://real", source.links[1].target)
+    assert.is_nil(document.target(source, nil, 2, 1))
+    assert.is_nil(document.target(source, nil, 2, 1, { line = "[edited](https://edited)" }))
+    local unmatched = document.new({ "`not closed", "[real](https://real)", "", "`another paragraph" })
+    assert.equals("https://real", unmatched.links[1].target)
+    local mixed = document.new({ "``start", "` [fake](https://fake)", "end`` [real](https://real)" })
+    assert.equals(1, #mixed.links)
+    assert.equals("https://real", mixed.links[1].target)
+  end)
+
+  it("allocates names without changing caller slugs or duplicate suffix policies", function()
+    local bases = { "foo", "foo", "foo-1", "foo", "foo-2" }
+    assert.same({ "foo", "foo-1", "foo-1-1", "foo-2", "foo-2-1" }, document.unique_names(bases))
+    assert.same({ "foo", "foo-2", "foo-1", "foo-3", "foo-2-2" }, document.unique_names(bases, 2))
+    assert.same({ "foo", "foo", "foo-1", "foo", "foo-2" }, bases)
+    assert.same({}, document.unique_names({}))
+  end)
 end)

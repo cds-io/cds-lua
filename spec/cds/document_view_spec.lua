@@ -88,4 +88,76 @@ describe("shared document display", function()
     vim.api.nvim_set_current_tabpage(other)
     vim.cmd("tabclose")
   end)
+
+  it("resumes a pending image after its retry was skipped in another tab", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new({ "image" }) }
+    local calls = 0
+    local view = views.new({
+      current = function(candidate)
+        return candidate == model and vim.api.nvim_buf_is_valid(buf)
+      end,
+      render = function(lines)
+        calls = calls + 1
+        return lines, {}, calls == 1, { { 0, 1, 0, 1 } }
+      end,
+      draw = function() end,
+      attach = function() end,
+      attach_window = function() end,
+      image_wait = function()
+        return 1
+      end,
+      group = "cds_hidden_image_test",
+      filetype = "markdown",
+    })
+    view.show(model)
+    vim.cmd("tabnew")
+    local other = vim.api.nvim_get_current_tabpage()
+    vim.wait(20)
+    assert.equals(1, calls)
+    vim.cmd("tabprevious")
+    local resumed = vim.wait(500, function()
+      return calls == 2
+    end)
+    local waiting = model.doc.waiting
+    vim.api.nvim_set_current_tabpage(other)
+    vim.cmd("tabclose")
+    assert.is_true(resumed)
+    assert.is_false(waiting)
+  end)
+
+  it("does not duplicate or restart exhausted image retries on entry", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new({ "image" }) }
+    local calls = 0
+    views
+      .new({
+        current = function(candidate)
+          return candidate == model and vim.api.nvim_buf_is_valid(buf)
+        end,
+        render = function(lines)
+          calls = calls + 1
+          return lines, {}, true, { { 0, 1, 0, 1 } }
+        end,
+        draw = function() end,
+        attach = function() end,
+        attach_window = function() end,
+        image_wait = function()
+          return 1
+        end,
+        group = "cds_image_budget_test",
+        filetype = "markdown",
+      })
+      .show(model)
+    vim.api.nvim_exec_autocmds("BufWinEnter", { buffer = buf })
+    assert.equals(1, calls)
+    assert.is_true(vim.wait(1000, function()
+      return calls == 7
+    end))
+    vim.api.nvim_exec_autocmds("BufWinEnter", { buffer = buf })
+    vim.wait(20)
+    assert.equals(7, calls)
+  end)
 end)

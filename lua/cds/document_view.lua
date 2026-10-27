@@ -4,7 +4,7 @@
 --- new(deps) supplies show(model) and window_of(buf). Inject current(model), render(markdown, width), draw(buf,
 --- rendered), attach(buf), attach_window(win), image_wait(), group and filetype. The view retries pending images
 --- and watches resize and colorscheme events while the model remains current. The model carries buf and markdown;
---- rendering writes doc, width and draws.
+--- rendering writes doc, width and draws. Hidden image retries resume on entry without restarting an exhausted budget.
 
 ---@class cds.DocumentModel
 ---@field buf integer
@@ -56,6 +56,21 @@ function View.new(deps)
     return info.width - info.textoff
   end
 
+  -- One lifecycle per shown model. Replacing it invalidates its timers.
+  ---@class cds.DocumentDisplayState
+  ---@field package dirty boolean
+  ---@field package visible boolean
+  ---@field package pending boolean
+  ---@field package resume boolean
+  ---@field package scheduled boolean
+  ---@field package attempt integer
+  ---@field package generation integer
+
+  ---@type table<integer, cds.DocumentDisplayState>
+  local sessions = {}
+  ---@type fun(model: cds.DocumentModel, state: cds.DocumentDisplayState, event: string)
+  local refresh
+
   -- The first wait for vellum's images, in milliseconds, doubled for each
   -- try after it; and the tries.
   local IMAGE_TRIES = 6
@@ -77,8 +92,9 @@ function View.new(deps)
   --- at the width it had: a redraw on a resize or a colorscheme starts tries
   --- of its own, and a wipe ends them.
   ---@param model cds.DocumentModel
-  ---@param try? integer the tries before this draw
-  local function draw_item(model, try)
+  ---@param state cds.DocumentDisplayState
+  ---@param try integer the tries before this draw
+  local function draw_item(model, state, try)
     local buf = model.buf
     local markdown = model.document and model.document.markdown or assert(model.markdown)
     local waiting
@@ -104,16 +120,44 @@ function View.new(deps)
       end
     end
     model.draws = (model.draws or 0) + 1
-    try = try or 0
-    if not waiting or try >= IMAGE_TRIES then
+    state.dirty, state.resume, state.scheduled = false, false, false
+    state.pending, state.attempt = model.doc.waiting, try
+    state.visible = vim.fn.bufwinid(buf) ~= -1
+    state.generation = state.generation + 1
+    if not state.pending or try >= IMAGE_TRIES then
       return
     end
-    local draws, width = model.draws, model.width
+    local generation = state.generation
+    state.scheduled = true
     vim.defer_fn(function()
-      if deps.current(model) and vim.fn.bufwinid(buf) ~= -1 and model.draws == draws and model.width == width then
-        draw_item(model, try + 1)
+      if sessions[buf] == state and state.generation == generation then
+        refresh(model, state, "retry")
       end
     end, deps.image_wait() * 2 ^ try)
+  end
+
+  -- Resize, invalidation, entry and retry all use the same transition. A
+  -- hidden retry becomes resumable work, without spending the retry budget.
+  refresh = function(model, state, event)
+    if sessions[model.buf] ~= state or not deps.current(model) then
+      return
+    end
+    local win = vim.fn.bufwinid(model.buf)
+    state.visible = win ~= -1
+    if event == "ColorScheme" then
+      state.dirty = true
+    end
+    if event == "retry" then
+      state.scheduled, state.resume = false, state.pending
+    end
+    if not model.width or not state.visible then
+      return
+    end
+    if state.dirty or text_width(win) ~= model.width then
+      draw_item(model, state, 0)
+    elseif state.pending and state.resume and not state.scheduled and state.attempt < IMAGE_TRIES then
+      draw_item(model, state, state.attempt + 1)
+    end
   end
 
   --- vellum's lines are wrapped to one width and coloured for one colorscheme,
@@ -122,48 +166,48 @@ function View.new(deps)
   --- gone with the buffer. The caller's ColorScheme autocmd must
   --- invalidate the renderer's theme before these redraws run.
   ---@param model cds.DocumentModel
-  local function watch(model)
+  ---@param state cds.DocumentDisplayState
+  local function watch(model, state)
     local buf = model.buf
     local group = vim.api.nvim_create_augroup(deps.group .. "_" .. buf, { clear = true })
-    local dirty = false
-    local function refresh(event)
-      if not (model.width and deps.current(model)) then
-        return
-      end
-      if event.event == "ColorScheme" then
-        dirty = true
-      end
-      local win = vim.fn.bufwinid(buf)
-      if win == -1 then
-        return
-      end
-      if dirty or text_width(win) ~= model.width then
-        dirty = false
-        draw_item(model)
-      end
+    local function changed(event)
+      refresh(model, state, event.event)
     end
     vim.api.nvim_create_autocmd({ "WinResized", "ColorScheme", "TabEnter" }, {
       group = group,
-      callback = refresh,
+      callback = changed,
     })
     vim.api.nvim_create_autocmd("BufWinEnter", {
       group = group,
       buffer = buf,
-      callback = refresh,
+      callback = changed,
     })
     vim.api.nvim_create_autocmd("BufWipeout", {
       group = group,
       buffer = buf,
       once = true,
       callback = function()
+        if sessions[buf] == state then
+          sessions[buf] = nil
+        end
         vim.api.nvim_del_augroup_by_id(group)
       end,
     })
   end
 
   function M.show(model)
-    draw_item(model)
-    watch(model)
+    local state = {
+      dirty = false,
+      visible = false,
+      pending = false,
+      resume = false,
+      scheduled = false,
+      attempt = 0,
+      generation = 0,
+    }
+    sessions[model.buf] = state
+    draw_item(model, state, 0)
+    watch(model, state)
   end
   M.window_of = window_of
   return M

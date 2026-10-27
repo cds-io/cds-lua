@@ -160,3 +160,15 @@ marker, be at least as long, and have no info string.
 For the last normal window in its tab, it runs `fallback()` in that window
 instead; floating windows do not make the last normal window closable. Plugins
 choose their own alternate-buffer or empty-buffer policy in the fallback.
+
+`cds.document.unique_names(bases, first)` allocates unique identities in input
+order without changing its input. Callers supply slugs and prefixes; `first`
+selects the first duplicate suffix (1 by default, 2 for proposal/report tags).
+All allocated names are reserved, including names that already end in a number.
+Inline code spans may cross soft line breaks within one paragraph; those spans
+are excluded from compiled link metadata and live-line navigation.
+
+The document presenter tracks invalidation, visibility, pending images and the
+retry budget together. A retry skipped while hidden is resumed on entry, while
+entry alone does not restart an exhausted budget. A replacement model or wipe
+invalidates its timers.

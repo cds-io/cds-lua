@@ -1488,6 +1488,17 @@ Return ~
 `(string|nil)`
 
 ------------------------------------------------------------------------------
+                                                   *cds.document.unique_names()*
+                   `document.unique_names`({bases}, {first})
+Allocate unique names in input order without modifying the bases. Callers
+supply their own slugs/prefixes and the first duplicate suffix (default 1).
+Parameters ~
+{bases} `(string[])`
+{first} `(optional)` `(integer)`
+Return ~
+`(string[])`
+
+------------------------------------------------------------------------------
                                                            *cds.document.slug()*
                             `document.slug`({text})
 A heading's text as GitHub writes its anchor: lower-cased, letters,
@@ -1937,7 +1948,7 @@ Return ~
 new(deps) supplies show(model) and window_of(buf). Inject current(model), render(markdown, width), draw(buf,
 rendered), attach(buf), attach_window(win), image_wait(), group and filetype. The view retries pending images
 and watches resize and colorscheme events while the model remains current. The model carries buf and markdown;
-rendering writes doc, width and draws.
+rendering writes doc, width and draws. Hidden image retries resume on entry without restarting an exhausted budget.
 
 ------------------------------------------------------------------------------
 Class ~
