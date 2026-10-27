@@ -43,21 +43,35 @@ It checks availability, not signatures or behavior, and complements your tests.
 ### HTML parser dependency
 
 `cds.html` uses [lua-gumbo](https://gitlab.com/craigbarnes/lua-gumbo) as its only
-HTML parser. Other modules do not require it. Install the Lua 5.1 rock for
-Neovim's LuaJIT; a Lua 5.4 build is not compatible:
+HTML parser. With lazy.nvim 11+, cds-lua's `lazy.lua` declares lua-gumbo as a
+transitive dependency. Lazy fetches it, builds its rockspec for Lua 5.1/LuaJIT,
+and exposes both the Lua and native modules automatically. No manual LuaRocks
+installation or `package.path`/`package.cpath` edits are needed.
+
+Keep Lazy's default package support enabled: `pkg.sources` must include `lazy`
+and `rockspec`, and `rocks.enabled` must be true. Run `:Lazy sync` after updating
+cds-lua; use `:Lazy build lua-gumbo` to retry a failed build. Building requires a
+C99 compiler; Lazy uses system LuaRocks or its managed hererocks environment.
+On macOS, install the Xcode Command Line Tools (`xcode-select --install`);
+on Linux, install your distribution's C build tools.
+
+Check inside Neovim with `:lua print(require("gumbo").VERSION)`; the tested
+version is `0.5`. Missing or incompatible native modules produce an installation
+error when parsing is first requested; there is no fallback parser.
+
+#### Manual installation fallback
+
+For other plugin managers, disabled Lazy rock support, or standalone test
+runners, install the Lua 5.1 rock. A Lua 5.4 build is incompatible with Neovim:
 
 ```sh
 luarocks --lua-version=5.1 --local install gumbo 0.5-1
 ```
 
-Building requires a C99 compiler and Lua 5.1 or LuaJIT development headers.
-On macOS, install the Xcode Command Line Tools (`xcode-select --install`) and
-LuaRocks with Lua 5.1/LuaJIT headers. On Linux, install a C toolchain, LuaRocks,
-and your distribution's Lua 5.1 development package (for example,
-`build-essential luarocks liblua5.1-0-dev` on Debian/Ubuntu).
-
-For a local rock installation, add its paths near the start of `init.lua`,
-before using HTML conversion:
+This requires LuaRocks, a C99 compiler and Lua 5.1/LuaJIT development headers
+(for example, `build-essential luarocks liblua5.1-0-dev` on Debian/Ubuntu).
+If your manager does not expose the rock tree, add its paths near the start
+of `init.lua`, before using HTML conversion:
 
 ```lua
 local rocks = vim.fn.expand("~/.luarocks")
@@ -65,11 +79,7 @@ package.path = rocks .. "/share/lua/5.1/?.lua;" .. rocks .. "/share/lua/5.1/?/in
 package.cpath = rocks .. "/lib/lua/5.1/?.so;" .. package.cpath
 ```
 
-Use your actual rock tree instead of `~/.luarocks` if you installed elsewhere.
-Plugin managers that already expose that Lua 5.1 tree need no extra path setup.
-Check inside Neovim with `:lua print(require("gumbo").VERSION)`; the tested
-version is `0.5`. Missing or incompatible native modules produce an installation
-error when parsing is first requested; there is no fallback parser.
+Use your actual rock tree instead of `~/.luarocks` if installed elsewhere.
 
 ## Start with a small pipeline
 
@@ -108,7 +118,7 @@ The library grows by addition: functions keep their contracts under their
 names, and different contracts get different names. This is a learning
 project, written in the open.
 
-Tests require Lua 5.1 rocks `busted` and `gumbo` (the runner loads
+Standalone tests run outside Lazy and require Lua 5.1 rocks `busted` and `gumbo` (the runner loads
 `~/.luarocks`):
 
 ```sh
@@ -121,6 +131,21 @@ make check     # specs, formatting, lint, type check, and help freshness
 make doc       # regenerate doc/cds-lua.txt
 make site      # generate site/modules/*.md from annotations
 ```
+
+The explicit Lazy integration check needs network access, a C compiler, and a
+sibling `../cds-lua-fp` checkout. It
+installs into a fresh temporary tree, verifies rockspec detection and native
+loading, and converts HTML without manual module-path edits:
+
+```sh
+env -u LUA_PATH -u LUA_CPATH -u LUA_INIT \
+  LAZY_NVIM_DIR="$HOME/.local/share/nvim/lazy/lazy.nvim" \
+  CDS_LAZY_TEST_ROOT="$(mktemp -d)/install" \
+  nvim --headless -u NONE -i NONE -l spec/lazy_gumbo.lua
+```
+
+Use your Lazy checkout's actual path. The check rejects an already-loadable
+Gumbo module so an existing manual installation cannot mask build failures.
 
 ## Licence
 
