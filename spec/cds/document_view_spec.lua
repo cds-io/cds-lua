@@ -53,4 +53,39 @@ describe("shared document display", function()
       assert.equals(2, calls)
     end)
   end
+
+  it("refreshes a styled document when returning after a hidden colorscheme change", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new({ "# Title" }) }
+    local calls = 0
+    local view = views.new({
+      current = function(candidate)
+        return candidate == model and vim.api.nvim_buf_is_valid(buf)
+      end,
+      render = function(lines)
+        calls = calls + 1
+        return lines, {}, false, { { 0, 1, 0, 1 } }
+      end,
+      draw = function() end,
+      attach = function() end,
+      attach_window = function() end,
+      image_wait = function()
+        return 1
+      end,
+      group = "cds_hidden_document_test",
+      filetype = "markdown",
+    })
+    view.show(model)
+    vim.cmd("tabnew")
+    local other = vim.api.nvim_get_current_tabpage()
+    vim.api.nvim_exec_autocmds("ColorScheme", {})
+    assert.equals(1, calls)
+    vim.cmd("tabprevious")
+    assert.equals(2, calls)
+    vim.api.nvim_exec_autocmds("BufWinEnter", { buffer = buf })
+    assert.equals(2, calls)
+    vim.api.nvim_set_current_tabpage(other)
+    vim.cmd("tabclose")
+  end)
 end)

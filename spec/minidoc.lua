@@ -31,6 +31,7 @@ local FILES = {
   "vellum",
   "navigator",
   "document_view",
+  "window",
 }
 
 ---@param block table   -- a mini.doc block: an array of sections

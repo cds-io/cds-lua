@@ -111,6 +111,8 @@ nil when vellum is absent or fails, allowing a plain Markdown fallback. The
 optional dependency stays optional. `restyle()` invalidates theme state.
 `cds.document_view.new(deps)` owns redraws and bounded image retries; its injected
 model guard prevents stale asynchronous rendering from changing another model.
+Hidden styled documents retain colorscheme invalidation and refresh when their
+buffer or tab becomes visible again.
 
 `cds.navigator.new()` creates independent per-window follow guards and history.
 `follow(win, target, resolve, open)` accepts web URLs or application tags: the
@@ -148,3 +150,13 @@ fence exclusions. The older `link` and `link_at` entry points remain available.
 HTML adapters may choose `region = "body"` with `page = true` and an explicit
 `drop` map when metadata outside main/article belongs to the source document.
 The default reader policy still prefers main, article, then body.
+
+Markdown link scanning is shared by compiled documents and `link_at`; it skips
+inline code spans and escaped delimiters. Edited lines passed to `target` are
+scanned in their document's fence context. A closing fence must match the opening
+marker, be at least as long, and have no info string.
+
+`cds.window.close_or(win, fallback)` closes a normal split or floating window.
+For the last normal window in its tab, it runs `fallback()` in that window
+instead; floating windows do not make the last normal window closable. Plugins
+choose their own alternate-buffer or empty-buffer policy in the fallback.

@@ -3,7 +3,8 @@
 ---@text
 --- Pure Markdown documents carry one-based anchor rows and link spans with zero-based byte columns. Explicit HTML
 --- anchors take precedence over generated heading slugs. Renderers preserve this source document and map its rows
---- through their block anchors.
+--- through their block anchors. Link scanning excludes inline code and escaped delimiters; fenced code is
+--- excluded from both link and heading metadata.
 
 local M = {}
 
@@ -72,32 +73,7 @@ end
 ---@param col integer
 ---@return string|nil
 function M.link_at(line, col)
-  local at = col + 1
-  -- the innermost link and the innermost image, each with its width
-  local best = { link = {}, image = {} }
-  local close = line:find("](", 1, true)
-  while close do
-    if not escaped(line, close) then
-      local first = opening(line, close)
-      local href, last = destination(line, close)
-      if first and href and first <= at and at <= last then
-        local kind = first > 1 and line:sub(first - 1, first - 1) == "!" and "image" or "link"
-        if not best[kind].width or last - first < best[kind].width then
-          best[kind] = { href = href, width = last - first }
-        end
-      end
-    end
-    close = line:find("](", close + 1, true)
-  end
-  if best.link.href or best.image.href then
-    return best.link.href or best.image.href
-  end
-  for first, url, last in line:gmatch("()<(%a[%w+.-]*:[^%s<>]*)>()") do
-    if first <= at and at < last then
-      return url
-    end
-  end
-  return nil
+  return M.link(M.new({ line }), 1, col)
 end
 
 --- A heading's text as GitHub writes its anchor: lower-cased, letters,
@@ -139,6 +115,74 @@ function M.heading(markdown, fragment)
   return nil, nil
 end
 
+--- Byte ranges occupied by inline code; delimiters must have matching lengths.
+---@param line string
+---@return integer[][]
+local function code_spans(line)
+  local spans, at = {}, 1
+  while at <= #line do
+    local first, last = line:find("`+", at)
+    if not first then
+      break
+    end
+    local stop, tail = nil, last + 1
+    if not escaped(line, first) then
+      while tail <= #line do
+        local from, to = line:find("`+", tail)
+        if not from then
+          break
+        end
+        if to - from == last - first then
+          stop = to
+          break
+        end
+        tail = to + 1
+      end
+    end
+    if stop then
+      spans[#spans + 1] = { first, stop }
+    end
+    at = (stop or last) + 1
+  end
+  return spans
+end
+
+--- Links outside code spans, preserving byte columns and nested image links.
+---@param line string
+---@param row integer
+---@return cds.DocumentLink[]
+local function scan_links(line, row)
+  local links, code = {}, code_spans(line)
+  local function literal(at)
+    if escaped(line, at) then
+      return true
+    end
+    for _, span in ipairs(code) do
+      if span[1] <= at and at <= span[2] then
+        return true
+      end
+    end
+    return false
+  end
+  local close = line:find("](", 1, true)
+  while close do
+    local first = not literal(close) and opening(line, close)
+    local href, last = destination(line, close)
+    if first and not literal(first) and href then
+      local kind = first > 1 and line:sub(first - 1, first - 1) == "!" and not escaped(line, first - 1) and "image"
+        or "link"
+      links[#links + 1] = { lnum = row, col = first - 1, end_col = last, target = href, kind = kind }
+    end
+    close = line:find("](", close + 1, true)
+  end
+  for first, url, last in line:gmatch("()<(%a[%w+.-]*:[^%s<>]*)>()") do
+    if not literal(first) then
+      links[#links + 1] = { lnum = row, col = first - 1, end_col = last - 1, target = url, kind = "link" }
+    end
+  end
+  return links
+end
+
 ---@class cds.LinkSpan
 ---@field lnum integer
 ---@field col integer
@@ -172,11 +216,16 @@ function M.new(markdown, opts)
   local fence
   for row, line in ipairs(markdown) do
     doc.markdown[row] = line
-    local marker = line:match("^%s*(```+)") or line:match("^%s*(~~~+)")
+    local marker, rest = line:match("^%s*(```+)(.*)$")
+    if not marker then
+      marker, rest = line:match("^%s*(~~~+)(.*)$")
+    end
     if marker then
       if not fence then
-        fence = marker
-      elseif marker:sub(1, 1) == fence:sub(1, 1) and #marker >= #fence then
+        if marker:sub(1, 1) ~= "`" or not rest:find("`", 1, true) then
+          fence = marker
+        end
+      elseif marker:sub(1, 1) == fence:sub(1, 1) and #marker >= #fence and rest:match("^%s*$") then
         fence = nil
       end
     elseif not fence then
@@ -191,18 +240,8 @@ function M.new(markdown, opts)
         used[name] = true
         doc.anchors[name] = row
       end
-      local close = line:find("](", 1, true)
-      while close do
-        local first = not escaped(line, close) and opening(line, close)
-        local href, last = destination(line, close)
-        if first and href then
-          local kind = first > 1 and line:sub(first - 1, first - 1) == "!" and "image" or "link"
-          table.insert(doc.links, { lnum = row, col = first - 1, end_col = last, target = href, kind = kind })
-        end
-        close = line:find("](", close + 1, true)
-      end
-      for first, url, last in line:gmatch("()<(%a[%w+.-]*:[^%s<>]*)>()") do
-        table.insert(doc.links, { lnum = row, col = first - 1, end_col = last - 1, target = url, kind = "link" })
+      for _, link in ipairs(scan_links(line, row)) do
+        doc.links[#doc.links + 1] = link
       end
     end
   end
@@ -312,7 +351,8 @@ end
 
 --- One selection policy for source and rendered links. first selects the
 --- leftmost span on the row; otherwise select the most specific cursor span.
---- An optional live line supports editable Markdown without stale metadata.
+--- An optional live line supports editable Markdown without stale metadata,
+--- retaining the surrounding source document's code-fence context.
 ---@param source cds.Document
 ---@param rendered cds.RenderedDocument?
 ---@param row integer
@@ -325,10 +365,12 @@ function M.target(source, rendered, row, col, opts)
     return select_link(rendered.marks, row, col, opts.first)
   end
   if opts.line and opts.line ~= source.markdown[row] then
-    if not opts.first then
-      return M.link_at(opts.line, col)
+    local markdown = {}
+    for i, line in ipairs(source.markdown) do
+      markdown[i] = line
     end
-    return select_link(M.new({ opts.line }).links, 1, col, true)
+    markdown[row] = opts.line
+    return select_link(M.new(markdown).links, row, col, opts.first)
   end
   return select_link(source.links, row, col, opts.first)
 end

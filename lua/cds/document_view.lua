@@ -117,27 +117,39 @@ function View.new(deps)
   end
 
   --- vellum's lines are wrapped to one width and coloured for one colorscheme,
-  --- so they are drawn again when either changes: one augroup per item buffer,
+  --- so they are drawn again when either changes, or on entry after a hidden
+  --- change: one augroup per item buffer,
   --- gone with the buffer. The caller's ColorScheme autocmd must
   --- invalidate the renderer's theme before these redraws run.
   ---@param model cds.DocumentModel
   local function watch(model)
     local buf = model.buf
     local group = vim.api.nvim_create_augroup(deps.group .. "_" .. buf, { clear = true })
-    vim.api.nvim_create_autocmd({ "WinResized", "ColorScheme" }, {
+    local dirty = false
+    local function refresh(event)
+      if not (model.width and deps.current(model)) then
+        return
+      end
+      if event.event == "ColorScheme" then
+        dirty = true
+      end
+      local win = vim.fn.bufwinid(buf)
+      if win == -1 then
+        return
+      end
+      if dirty or text_width(win) ~= model.width then
+        dirty = false
+        draw_item(model)
+      end
+    end
+    vim.api.nvim_create_autocmd({ "WinResized", "ColorScheme", "TabEnter" }, {
       group = group,
-      callback = function(event)
-        if not (model.width and deps.current(model)) then
-          return
-        end
-        local win = vim.fn.bufwinid(buf)
-        if win == -1 then
-          return
-        end
-        if event.event == "ColorScheme" or text_width(win) ~= model.width then
-          draw_item(model)
-        end
-      end,
+      callback = refresh,
+    })
+    vim.api.nvim_create_autocmd("BufWinEnter", {
+      group = group,
+      buffer = buf,
+      callback = refresh,
     })
     vim.api.nvim_create_autocmd("BufWipeout", {
       group = group,

@@ -80,6 +80,7 @@ including OAuth, secrets, and processes.
   Optional vellum rendering ..................................... |cds.vellum|
   Document tag navigation .................................... |cds.navigator|
   Document display lifecycle ............................. |cds.document_view|
+  Window closing ................................................ |cds.window|
 
                                                                       *cds.task*
 A Task describes asynchronous work without starting it. Build a pipeline
@@ -1470,7 +1471,8 @@ Parameters ~
                                                                   *cds.document*
 Pure Markdown documents carry one-based anchor rows and link spans with zero-based byte columns. Explicit HTML
 anchors take precedence over generated heading slugs. Renderers preserve this source document and map its rows
-through their block anchors.
+through their block anchors. Link scanning excludes inline code and escaped delimiters; fenced code is
+excluded from both link and heading metadata.
 
 ------------------------------------------------------------------------------
                                                         *cds.document.link_at()*
@@ -1619,7 +1621,8 @@ Return ~
          `document.target`({source}, {rendered}, {row}, {col}, {opts})
 One selection policy for source and rendered links. first selects the
 leftmost span on the row; otherwise select the most specific cursor span.
-An optional live line supports editable Markdown without stale metadata.
+An optional live line supports editable Markdown without stale metadata,
+retaining the surrounding source document's code-fence context.
 Parameters ~
 {source} `(cds.Document)`
 {rendered} `(cds.RenderedDocument?)`
@@ -1977,6 +1980,22 @@ Parameters ~
 {deps} `(cds.DocumentViewDependencies)`
 Return ~
 `(cds.DocumentView)`
+
+
+==============================================================================
+                                                                    *cds.window*
+close_or(win, fallback) closes a split or floating window. When win is the tab's last normal window,
+run fallback in that window instead. Floats do not count as normal windows; callers own buffer policy.
+
+------------------------------------------------------------------------------
+                                                         *cds.window.close_or()*
+                      `window.close_or`({win}, {fallback})
+Close a window when possible, or run the caller's last-window action in it.
+Parameters ~
+{win} `(integer)`
+{fallback} `(fun())`
+Return ~
+`(boolean)` closed
 
 
  vim:tw=78:ts=8:noet:ft=help:norl:

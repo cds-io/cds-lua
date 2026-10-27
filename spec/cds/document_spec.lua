@@ -164,4 +164,41 @@ describe("shared document contract", function()
     assert.equals("## Abstract", report.markdown[report.anchors.abstract])
     assert.equals("## Intro", report.markdown[report.anchors.intro])
   end)
+
+  it("ignores code spans and escaped link openers in both link selection paths", function()
+    local line = "`[code](https://code)` ``[ticks](https://ticks) ` inside`` "
+      .. "\\[escaped](https://escaped) [real `label`](https://real) <https://bare>"
+    local doc = document.new({ line })
+    assert.equals(2, #doc.links)
+    for col = 0, #line - 1 do
+      assert.equals(document.link(doc, 1, col), document.link_at(line, col))
+    end
+    assert.equals("https://real", document.target(doc, nil, 1, 0, { first = true }))
+    assert.is_nil(document.link_at(line, 3))
+    local generated = html.document("<p><code>[example](https://example.org)</code></p>")
+    assert.same({}, generated.links)
+    assert.same({}, document.new({ "`<https://code>`" }).links)
+  end)
+
+  it("keeps info strings and short markers inside their enclosing code fence", function()
+    for _, mark in ipairs({ "`", "~" }) do
+      local fence = string.rep(mark, 4)
+      local lines = {
+        fence .. "md",
+        string.rep(mark, 3),
+        fence .. "lang",
+        "# Fake",
+        "[x](https://fake)",
+        fence .. "  ",
+        "# Real",
+        "[x](https://real)",
+      }
+      local doc = document.new(lines)
+      assert.is_nil(doc.anchors.fake)
+      assert.equals(7, doc.anchors.real)
+      assert.equals(1, #doc.links)
+      assert.equals("https://real", doc.links[1].target)
+      assert.is_nil(document.target(doc, nil, 5, 1, { line = "[edited](https://edited)" }))
+    end
+  end)
 end)
