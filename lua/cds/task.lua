@@ -25,6 +25,23 @@
 --- For a plugin you distribute, put this library spec in your plugin's
 --- dependencies. Other managers must put both libraries on the runtimepath.
 ---
+--- HTML conversion additionally requires the Lua 5.1 lua-gumbo rock and a C99
+--- compiler plus Lua 5.1/LuaJIT headers to build it: >sh
+---
+---   luarocks --lua-version=5.1 --local install gumbo 0.5-1
+--- <
+--- Expose the installed tree near the start of init.lua, unless your plugin
+--- manager already supplies its Lua 5.1 module paths: >lua
+---
+---   local rocks = vim.fn.expand("~/.luarocks")
+---   package.path = rocks .. "/share/lua/5.1/?.lua;" .. rocks .. "/share/lua/5.1/?/init.lua;" .. package.path
+---   package.cpath = rocks .. "/lib/lua/5.1/?.so;" .. package.cpath
+--- <
+--- Use your actual rock tree if installed elsewhere. Check inside Neovim with
+--- :lua print(require("gumbo").VERSION) (tested: 0.5). Other modules need no
+--- Gumbo installation. HTML parsing has no fallback backend; |cds.html|
+--- describes the HTML5 interpretation rules.
+---
 --- Check the APIs your plugin uses before registering commands. A declaration
 --- can live in lua/example/needs.lua; this self-contained startup check uses
 --- the same table directly: >lua

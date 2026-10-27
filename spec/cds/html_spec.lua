@@ -1,16 +1,16 @@
 local html = require("cds.html")
 
 describe("HTML conversion boundaries", function()
-  it("reads quoted and unquoted attributes, decoding values and keeping the last duplicate", function()
+  it("reads quoted and unquoted attributes, decoding values and keeping the first duplicate", function()
     local lines, anchors =
       html.markdown([[<div hidden id=old ID=section><a href='/old' HREF=/guide?a=1&amp;b=2>Guide</a>
       <img src=/image.png alt=Photo><a name=legacy>End</a></div>]])
-    assert.same({ "[Guide](/guide?a=1&b=2) ![Photo](/image.png)End" }, lines)
-    assert.same({ section = 1, legacy = 1 }, anchors)
+    assert.same({ "[Guide](/old) ![Photo](/image.png)End" }, lines)
+    assert.same({ old = 1, legacy = 1 }, anchors)
     assert.same({ "[Guide](<a > b>)" }, html.markdown([[<a title="href=wrong" href="a > b">Guide</a>]]))
   end)
 
-  it("keeps charset sniffing's first raw duplicate value", function()
+  it("uses DOM meta attributes and prefers the HTTP charset", function()
     assert.equals("utf-8", html.charset(nil, [[<meta CHARSET=utf-8 charset='windows-1252'>]]))
     assert.equals(
       "windows-1252",
@@ -49,16 +49,16 @@ describe("HTML conversion boundaries", function()
     end
   end)
 
-  it("closes inline spans at cell and block transitions without leaking list or quote state", function()
+  it("uses HTML5 formatting reconstruction across list and block transitions", function()
     assert.same(
       {
         "> - *One*",
-        ">   - **Two**",
+        ">   - ***Two***",
         ">",
         "> | *Cell* | Next |",
         "> | --- | --- |",
         "",
-        "After",
+        "***After***",
       },
       html.markdown(
         "<blockquote><ul><li><em>One<ul><li><strong>Two</ul></ul>"
@@ -73,14 +73,14 @@ describe("HTML conversion boundaries", function()
       html.markdown([[<em>before </em><a href=/u><em>middle</em></a><em> after</em> <code>a &lt; b</code> \(x\)]])
     )
     assert.same(
-      { "[one](/one)[two](/two)", "", "**Next**" },
+      { "[one](/one)[two](/two)", "", "**[Next](/two)**" },
       html.markdown("<a href=/one>one<a href=/two>two<p><strong>Next")
     )
   end)
 
   it("resets preformatted language and inline state between blocks", function()
     assert.same(
-      { "```lua", "a < b", "```", "", "*After*", "", "```", "plain", "```" },
+      { "```lua", "", "a < b", "```", "", "*After*", "", "```", "plain", "```" },
       html.markdown("<pre><code class=language-lua>\na &lt; b</code></pre><p><em>After</p><pre>plain</pre>")
     )
   end)

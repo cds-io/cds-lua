@@ -41,6 +41,37 @@ It checks availability, not signatures or behavior, and complements your tests.
 > Need to switch between Neovim versions? [Bob](https://github.com/mordechaihadad/bob)
 > installs and switches between stable and nightly builds. Bob’s your uncle!
 
+### HTML parser dependency
+
+`cds.html` uses [lua-gumbo](https://gitlab.com/craigbarnes/lua-gumbo) as its only
+HTML parser. Other modules do not require it. Install the Lua 5.1 rock for
+Neovim's LuaJIT; a Lua 5.4 build is not compatible:
+
+```sh
+luarocks --lua-version=5.1 --local install gumbo 0.5-1
+```
+
+Building requires a C99 compiler and Lua 5.1 or LuaJIT development headers.
+On macOS, install the Xcode Command Line Tools (`xcode-select --install`) and
+LuaRocks with Lua 5.1/LuaJIT headers. On Linux, install a C toolchain, LuaRocks,
+and your distribution's Lua 5.1 development package (for example,
+`build-essential luarocks liblua5.1-0-dev` on Debian/Ubuntu).
+
+For a local rock installation, add its paths near the start of `init.lua`,
+before using HTML conversion:
+
+```lua
+local rocks = vim.fn.expand("~/.luarocks")
+package.path = rocks .. "/share/lua/5.1/?.lua;" .. rocks .. "/share/lua/5.1/?/init.lua;" .. package.path
+package.cpath = rocks .. "/lib/lua/5.1/?.so;" .. package.cpath
+```
+
+Use your actual rock tree instead of `~/.luarocks` if you installed elsewhere.
+Plugin managers that already expose that Lua 5.1 tree need no extra path setup.
+Check inside Neovim with `:lua print(require("gumbo").VERSION)`; the tested
+version is `0.5`. Missing or incompatible native modules produce an installation
+error when parsing is first requested; there is no fallback parser.
+
 ## Start with a small pipeline
 
 This example needs no network. A real producer can await a process or HTTP
@@ -78,6 +109,14 @@ The library grows by addition: functions keep their contracts under their
 names, and different contracts get different names. This is a learning
 project, written in the open.
 
+Tests require Lua 5.1 rocks `busted` and `gumbo` (the runner loads
+`~/.luarocks`):
+
+```sh
+luarocks --lua-version=5.1 --local install busted
+luarocks --lua-version=5.1 --local install gumbo 0.5-1
+```
+
 ```
 make check     # specs, formatting, lint, type check, and help freshness
 make doc       # regenerate doc/cds-lua.txt
@@ -99,6 +138,23 @@ resolve against the base URL, preserving its query. Omit `page` for an HTML
 fragment; `page = true` selects main/article/body content. Selection and
 conversion never fetch a URL. Retain source-specific citation and tag policy
 in the consuming plugin.
+
+HTML interpretation follows Gumbo's HTML5 DOM. Compared with the former
+streaming parser:
+
+- Duplicate attributes retain their first value; duplicate IDs across elements
+  still map to their first emitted location.
+- Unclosed emphasis and links follow the repaired tree, including content in
+  later blocks; nested-list continuations remain in their parent item.
+- One newline immediately after `<pre>` is removed by HTML parsing. A newline
+  inside `<pre><code>` is preserved, and the renderer does not strip it again.
+- Character references are decoded once by Gumbo, including HTML5 named
+  entities. `html.entities` remains the standalone decoder for other callers.
+
+Selection, relative URL resolution, Markdown formatting and line-based anchor
+mapping remain in Lua. The parser receives UTF-8; `charset`/`transcode` retain
+HTTP/meta detection and the supported single-byte conversions. This does not
+load a browser or execute page JavaScript.
 
 `cds.document.prepend(source, header)` shifts anchors when a plugin adds metadata.
 `cds.document.anchor(source, fragment, rendered)` maps an explicit or generated

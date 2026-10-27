@@ -9,6 +9,18 @@ local function fixture(name)
 end
 
 describe("shared document contract", function()
+  for _, entry in ipairs({
+    { "rssfeedr-page.html", "https://blog.nerdware.ca/2026/10/24/hot-singles-v1.html" },
+    { "rfc-css-grid-2.html", "https://www.w3.org/TR/css-grid-2/" },
+  }) do
+    it("preserves the complete fixture contract for " .. entry[1], function()
+      local expected = vim.json.decode(fixture(entry[1] .. ".document.json"))
+      local actual, title = html.document(fixture(entry[1]), { base = entry[2], page = true })
+      assert.same(expected.document, actual)
+      assert.equals(expected.title, title)
+    end)
+  end
+
   it("reads rssfeedr's real article with code and resolved links", function()
     local doc, title = html.document(fixture("rssfeedr-page.html"), {
       base = "https://blog.nerdware.ca/2026/10/24/hot-singles-v1.html",
