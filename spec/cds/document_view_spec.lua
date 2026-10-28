@@ -44,7 +44,9 @@ describe("shared document display", function()
         filetype = "markdown",
       })
       view.show(model)
-      assert.equals(1, calls)
+      assert.is_true(vim.wait(500, function()
+        return calls == 1
+      end))
       assert.is_true(model.doc.source == source)
       assert.same(source.markdown, vim.api.nvim_buf_get_lines(buf, 0, -1, false))
       assert.equals(document.anchor(source, entry[2]), document.anchor(source, entry[2], model.doc))
@@ -53,6 +55,234 @@ describe("shared document display", function()
       assert.equals(2, calls)
     end)
   end
+
+  --- A renderer that doubles every line after the title, so rendered rows
+  --- differ from source rows: block one is the title, block two the rest.
+  local function doubling(markdown)
+    local lines = { markdown[1] }
+    for i = 2, #markdown do
+      lines[#lines + 1] = markdown[i]
+      lines[#lines + 1] = ""
+    end
+    return lines, {}, false, { { 0, 1, 0, 1 }, { 1, #markdown - 1, 1, 2 * (#markdown - 1) } }
+  end
+  local function ten_lines()
+    local lines = { "# Title" }
+    for i = 2, 10 do
+      lines[i] = "line " .. i
+    end
+    return lines
+  end
+  local function eager_view(model, opts)
+    local calls = 0
+    local view = views.new({
+      current = function(candidate)
+        return candidate == model and vim.api.nvim_buf_is_valid(model.buf)
+      end,
+      render = function(markdown)
+        calls = calls + 1
+        return doubling(markdown)
+      end,
+      draw = function(target, rendered)
+        vim.bo[target].modifiable = true
+        vim.api.nvim_buf_set_lines(target, 0, -1, false, rendered.lines)
+      end,
+      attach = function() end,
+      attach_window = function() end,
+      image_wait = function()
+        return 1
+      end,
+      group = "cds_eager_test_" .. model.buf,
+      filetype = "styled",
+      style_delay = (opts or {}).style_delay or 1,
+    })
+    return view, function()
+      return calls
+    end
+  end
+
+  it("draws the Markdown at once and the styled lines after the delay", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local markdown = ten_lines()
+    local model = { buf = buf, document = document.new(markdown) }
+    local view, calls = eager_view(model, { style_delay = 50 })
+    view.show(model)
+    assert.equals(0, calls())
+    assert.same(markdown, vim.api.nvim_buf_get_lines(buf, 0, -1, false))
+    assert.equals("markdown", vim.bo[buf].filetype)
+    assert.is_false(model.doc.styled)
+    assert.is_true(vim.wait(500, function()
+      return calls() == 1
+    end))
+    assert.equals(19, vim.api.nvim_buf_line_count(buf))
+    assert.equals("styled", vim.bo[buf].filetype)
+    assert.is_true(model.doc.styled)
+  end)
+
+  it("keeps the cursor on the same source line across the styled draw and a redraw", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new(ten_lines()) }
+    local view, calls = eager_view(model, { style_delay = 50 })
+    view.show(model)
+    vim.api.nvim_win_set_cursor(0, { 6, 0 })
+    assert.is_true(vim.wait(500, function()
+      return calls() == 1
+    end))
+    -- source row 6 is the fifth line of the doubled block: rendered row 1 + 1 + 2 * 4
+    assert.equals(10, vim.api.nvim_win_get_cursor(0)[1])
+    vim.api.nvim_exec_autocmds("ColorScheme", {})
+    assert.equals(2, calls())
+    assert.equals(10, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
+  it("styles a document shown hidden when its window shows it", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new(ten_lines()) }
+    local view, calls = eager_view(model, { style_delay = 10 })
+    view.show(model)
+    vim.cmd("tabnew")
+    local other = vim.api.nvim_get_current_tabpage()
+    vim.wait(100)
+    assert.equals(0, calls())
+    vim.cmd("tabprevious")
+    assert.is_true(vim.wait(500, function()
+      return calls() == 1
+    end))
+    assert.is_true(model.doc.styled)
+    vim.api.nvim_set_current_tabpage(other)
+    vim.cmd("tabclose")
+  end)
+
+  it("reports the styling phase on the report handed to show, finished once the styled draw is in", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new(ten_lines()) }
+    local view, calls = eager_view(model, { style_delay = 10 })
+    local report = require("cds.progress").new({ title = "T", plan = { "writing", "styling" } })
+    report:begin("writing")
+    view.show(model, { report = report })
+    assert.equals("running", report.phases[1].status)
+    assert.is_true(vim.wait(500, function()
+      return calls() == 1
+    end))
+    assert.is_true(report:finished())
+    assert.equals("done", report.phases[1].status)
+    assert.equals("done", report.phases[2].status)
+    assert.equals("styling", report.phases[2].name)
+    local marks = {}
+    for _, row in ipairs(report:timeline()) do
+      if row.kind == "mark" then
+        marks[#marks + 1] = row.name
+      end
+    end
+    assert.same({ "Markdown drawn", "styled drawn" }, marks)
+  end)
+
+  it("attaches the caller's keys again after the styled draw changes the filetype", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new(ten_lines()) }
+    local attached = 0
+    local view = views.new({
+      current = function(candidate)
+        return candidate == model and vim.api.nvim_buf_is_valid(model.buf)
+      end,
+      render = doubling,
+      draw = function(target, rendered)
+        vim.api.nvim_buf_set_lines(target, 0, -1, false, rendered.lines)
+      end,
+      attach = function(target)
+        attached = attached + 1
+        vim.keymap.set("n", "gO", "<Nop>", { buffer = target, desc = "caller's key" })
+      end,
+      attach_window = function() end,
+      image_wait = function()
+        return 1
+      end,
+      group = "cds_attach_test",
+      filetype = "styled",
+      style_delay = 10,
+    })
+    -- the plain draw's filetype brings an ftplugin whose undo takes the key
+    -- with it when the filetype changes, as Neovim's markdown ftplugin does
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = "markdown",
+      once = true,
+      callback = function(args)
+        vim.b[args.buf].undo_ftplugin = "silent! nunmap <buffer> gO"
+      end,
+    })
+    view.show(model)
+    assert.equals(1, attached)
+    assert.is_true(vim.wait(500, function()
+      return vim.bo[buf].filetype == "styled"
+    end))
+    assert.equals(2, attached)
+    assert.equals("caller's key", vim.fn.maparg("gO", "n", false, true).desc)
+  end)
+
+  it("keeps a page over styled_max_lines plain, under the document's filetype, and never styles it", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new(ten_lines()) }
+    local calls = 0
+    local view = views.new({
+      current = function(candidate)
+        return candidate == model and vim.api.nvim_buf_is_valid(model.buf)
+      end,
+      render = function(markdown)
+        calls = calls + 1
+        return doubling(markdown)
+      end,
+      draw = function(target, rendered)
+        vim.api.nvim_buf_set_lines(target, 0, -1, false, rendered.lines)
+      end,
+      attach = function() end,
+      attach_window = function() end,
+      image_wait = function()
+        return 1
+      end,
+      group = "cds_too_long_test",
+      filetype = "styled",
+      style_delay = 5,
+      styled_max_lines = 5,
+    })
+    local report = require("cds.progress").new({ title = "T", plan = { "styling" } })
+    view.show(model, { report = report })
+    assert.equals("styled", vim.bo[buf].filetype)
+    assert.is_false(model.doc.styled)
+    assert.is_true(report:finished())
+    vim.wait(100)
+    assert.equals(0, calls)
+    assert.equals(10, vim.api.nvim_buf_line_count(buf))
+    local marks = {}
+    for _, row in ipairs(report:timeline()) do
+      if row.kind == "mark" then
+        marks[#marks + 1] = row.name
+      end
+    end
+    assert.same({ "Markdown drawn", "styling skipped: 10 lines, over 5" }, marks)
+    vim.api.nvim_exec_autocmds("ColorScheme", {})
+    vim.wait(50)
+    assert.equals(0, calls)
+  end)
+
+  it("applies the views handed to show after the styled draw", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new(ten_lines()) }
+    local view, calls = eager_view(model, { style_delay = 10 })
+    local win = vim.api.nvim_get_current_win()
+    local saved = { lnum = 12, col = 0, topline = 1, leftcol = 0, coladd = 0, curswant = 0, skipcol = 0, topfill = 0 }
+    view.show(model, { views = { [win] = saved } })
+    assert.is_true(vim.wait(500, function()
+      return calls() == 1
+    end))
+    assert.equals(12, vim.api.nvim_win_get_cursor(0)[1])
+  end)
 
   it("refreshes a styled document when returning after a hidden colorscheme change", function()
     buf = vim.api.nvim_create_buf(false, true)
@@ -77,6 +307,9 @@ describe("shared document display", function()
       filetype = "markdown",
     })
     view.show(model)
+    assert.is_true(vim.wait(500, function()
+      return calls == 1
+    end))
     vim.cmd("tabnew")
     local other = vim.api.nvim_get_current_tabpage()
     vim.api.nvim_exec_autocmds("ColorScheme", {})
@@ -112,6 +345,9 @@ describe("shared document display", function()
       filetype = "markdown",
     })
     view.show(model)
+    assert.is_true(vim.wait(500, function()
+      return calls == 1
+    end))
     vim.cmd("tabnew")
     local other = vim.api.nvim_get_current_tabpage()
     vim.wait(20)
@@ -151,6 +387,9 @@ describe("shared document display", function()
         filetype = "markdown",
       })
       .show(model)
+    assert.is_true(vim.wait(500, function()
+      return calls == 1
+    end))
     vim.api.nvim_exec_autocmds("BufWinEnter", { buffer = buf })
     assert.equals(1, calls)
     assert.is_true(vim.wait(1000, function()

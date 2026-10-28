@@ -1,0 +1,131 @@
+local progress = require("cds.progress")
+
+describe("cds.progress", function()
+  local clock, report, changes
+  before_each(function()
+    clock = 1000
+    changes = 0
+    report = progress.new({
+      title = "CRS reports by topic",
+      plan = { "reading source", "parsing metadata", "filing" },
+      now = function()
+        return clock
+      end,
+    })
+    report:subscribe(function()
+      changes = changes + 1
+    end)
+  end)
+
+  it("renders the title with the elapsed time and the planned phases pending", function()
+    assert.same({
+      "CRS reports by topic              0.0s",
+      "· reading source",
+      "· parsing metadata",
+      "· filing",
+    }, report:lines(38))
+  end)
+
+  it("draws a bar on a counted phase and marks a finished phase with its seconds", function()
+    report:begin("reading source", 32)
+    report:tick(16)
+    clock = 4400
+    assert.same({
+      "CRS reports by topic              3.4s",
+      "▸ reading source [████████░░░░░░░░] 16/32",
+      "· parsing metadata",
+      "· filing",
+    }, report:lines(38))
+    report:begin("parsing metadata")
+    clock = 5600
+    assert.same({
+      "CRS reports by topic              4.6s",
+      "✓ reading source 3.4s",
+      "▸ parsing metadata",
+      "· filing",
+    }, report:lines(38))
+    assert.equals(3, changes)
+  end)
+
+  it("says done in the title once finished, and the error on a failure", function()
+    report:begin("reading source")
+    clock = 1500
+    report:finish()
+    assert.equals("CRS reports by topic      done in 0.5s", report:lines(38)[1])
+    assert.equals("✓ reading source 0.5s", report:lines(38)[2])
+    assert.is_true(report:finished())
+    local failed = progress.new({
+      title = "T",
+      plan = { "a" },
+      now = function()
+        return clock
+      end,
+    })
+    failed:begin("a")
+    failed:fail("HTTP 503 fetching the CRS index")
+    assert.same(
+      { "T                               failed", "✗ a: HTTP 503 fetching the CRS index" },
+      failed:lines(38)
+    )
+    assert.is_true(failed:finished())
+  end)
+
+  it("appends a phase the plan did not name, and ticks by one unless told", function()
+    report:begin("styling", 38)
+    report:tick()
+    report:tick()
+    assert.equals("▸ styling [█░░░░░░░░░░░░░░░] 2/38", report:lines(38)[5])
+    assert.equals("styling", report.phases[4].name)
+    assert.equals(2, report.phases[4].count)
+  end)
+
+  it("keeps a phase running when begun again under its name, taking the count given", function()
+    report:begin("reading source")
+    report:begin("reading source", 32)
+    report:tick(4)
+    assert.equals(3, #report.phases)
+    assert.equals("running", report.phases[1].status)
+    assert.equals(32, report.phases[1].of)
+    assert.equals(4, report.phases[1].count)
+  end)
+
+  it("keeps marks and blocks and lays the whole run out as a timeline", function()
+    report:begin("reading source", 32)
+    clock = 2200
+    report:begin("parsing metadata")
+    clock = 3400
+    report:block(900)
+    report:done()
+    clock = 3600
+    report:mark("Markdown drawn")
+    clock = 4100
+    report:finish()
+    assert.same({
+      { at = 0, kind = "phase", name = "reading source", duration = 1200 },
+      { at = 1200, kind = "phase", name = "parsing metadata", duration = 1200 },
+      { at = 1500, kind = "block", name = "parsing metadata", duration = 900 },
+      { at = 2600, kind = "mark", name = "Markdown drawn" },
+      { at = 3100, kind = "end", name = "done", duration = 3100 },
+    }, report:timeline())
+    assert.same({
+      "CRS reports by topic: done in 3.1s",
+      "  0.00s  reading source                  1.20s",
+      "  1.20s  parsing metadata                1.20s",
+      "  1.50s    main loop blocked             0.90s  during parsing metadata",
+      "  2.60s  Markdown drawn",
+      "  3.10s  done",
+    }, report:timeline_lines())
+  end)
+
+  it("stops telling an observer that unsubscribed", function()
+    local seen = 0
+    local off = report:subscribe(function()
+      seen = seen + 1
+    end)
+    report:begin("filing")
+    off()
+    report:done()
+    assert.equals(1, seen)
+    assert.equals(2, changes)
+  end)
+end)

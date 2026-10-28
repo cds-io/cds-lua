@@ -130,10 +130,22 @@ function M.render(markdown, width, opts)
   return nil
 end
 
+local generation = 0
+
 --- A colorscheme clears the highlight groups: define them again on the next
---- render.
+--- render. The generation moves, so a memo of rendered lines knows to let
+--- the next render through.
 function M.restyle()
   themed = false
+  generation = generation + 1
+end
+
+--- How many times the theme has been invalidated: a key for a memo over
+--- render, since the groups a rendering names are defined by the render
+--- that follows a restyle.
+---@return integer
+function M.generation()
+  return generation
 end
 
 --- The reader is told again, once, should vellum still fail.

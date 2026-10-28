@@ -244,4 +244,33 @@ describe("Task execution combinators", function()
     assert.is_nil(value)
     assert.is_false(err)
   end)
+
+  it(
+    "tick hops to the next main-loop turn even from the main loop, so a scheduled callback runs between steps",
+    function()
+      local order = {}
+      local work = Task.of(1)
+        :map(function(n)
+          order[#order + 1] = "first"
+          vim.schedule(function()
+            order[#order + 1] = "scheduled"
+          end)
+          return n + 1
+        end)
+        :tick()
+        :map(function(n)
+          order[#order + 1] = "second"
+          return n + 1
+        end)
+      local value
+      work:run():on_complete(function(_, v)
+        value = v
+      end)
+      assert.is_true(vim.wait(500, function()
+        return value ~= nil
+      end))
+      assert.equals(3, value)
+      assert.same({ "first", "scheduled", "second" }, order)
+    end
+  )
 end)
