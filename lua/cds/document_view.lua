@@ -32,6 +32,8 @@ local document = require("cds.document")
 ---@field group string -- autocmd namespace owned by this presenter
 ---@field filetype string -- styled rendering's filetype; Markdown is the fallback
 ---@field style_delay? integer -- milliseconds between the Markdown draw and the styled one; 30 unless given
+---@field styled_max_lines? integer -- a page with more Markdown lines stays plain, under the document's
+--- filetype; 20000 unless given
 
 ---@class cds.DocumentShowOptions
 ---@field views? table<integer, table> -- winsaveview tables by window, applied after the styled draw
@@ -90,6 +92,7 @@ function View.new(deps)
   -- try after it; and the tries.
   local IMAGE_TRIES = 6
   local STYLE_DELAY = 30
+  local STYLED_MAX_LINES = 20000
 
   --- The windows showing `buf` with their views and the source row each
   --- cursor is on in the layout drawn now, so a redraw can put it back.
@@ -142,25 +145,38 @@ function View.new(deps)
   --- The Markdown itself into the buffer, as the first thing a reader sees
   --- of a document and all of it on a machine without vellum: filetype
   --- markdown, so treesitter colours it, with the caller's keys attached.
+  --- A page over styled_max_lines is final as drawn, under the document's
+  --- own filetype: treesitter over tens of thousands of lines and vellum's
+  --- render of them cost seconds a reader would wait frozen for, on a page
+  --- whose styling adds little.
   ---@param model cds.DocumentModel
   ---@param state cds.DocumentDisplayState
-  local function draw_plain(model, state)
+  ---@param final boolean   -- no styled draw will follow
+  local function draw_plain(model, state, final)
     local buf = model.buf
     local markdown = model.document and model.document.markdown or assert(model.markdown)
     model.width = nil
     model.doc = document.rendered(model.document or document.new(markdown), nil, nil, nil, nil)
     deps.draw(buf, model.doc)
-    if vim.bo[buf].filetype ~= "markdown" then
-      vim.bo[buf].filetype = "markdown"
+    local filetype = final and deps.filetype or "markdown"
+    if vim.bo[buf].filetype ~= filetype then
+      vim.bo[buf].filetype = filetype
     end
     deps.attach(buf)
     for _, win in ipairs(vim.fn.win_findbuf(buf)) do
       deps.attach_window(win)
     end
     model.draws = (model.draws or 0) + 1
-    state.plain = true
+    state.plain = not final
     if state.report then
       state.report:mark("Markdown drawn")
+      if final then
+        state.report:mark(
+          ("styling skipped: %d lines, over %d"):format(#markdown, deps.styled_max_lines or STYLED_MAX_LINES)
+        )
+        state.report:finish()
+        state.report = nil
+      end
     end
   end
 
@@ -340,8 +356,13 @@ function View.new(deps)
     }
     local buf = model.buf
     sessions[buf] = state
-    draw_plain(model, state)
+    local markdown = model.document and model.document.markdown or assert(model.markdown)
+    local too_long = #markdown > (deps.styled_max_lines or STYLED_MAX_LINES)
+    draw_plain(model, state, too_long)
     watch(model, state)
+    if too_long then
+      return
+    end
     vim.defer_fn(function()
       if sessions[buf] == state and state.plain and deps.current(model) then
         refresh(model, state, "style")

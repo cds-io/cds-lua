@@ -1981,6 +1981,8 @@ Fields ~
 {group} `(string)` autocmd namespace owned by this presenter
 {filetype} `(string)` styled rendering's filetype; Markdown is the fallback
 {style_delay} `(optional)` `(integer)` milliseconds between the Markdown draw and the styled one; 30 unless given
+{styled_max_lines} `(optional)` `(integer)` a page with more Markdown lines stays plain, under the document's
+filetype; 20000 unless given
 
 ------------------------------------------------------------------------------
 Class ~

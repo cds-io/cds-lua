@@ -224,6 +224,52 @@ describe("shared document display", function()
     assert.equals("caller's key", vim.fn.maparg("gO", "n", false, true).desc)
   end)
 
+  it("keeps a page over styled_max_lines plain, under the document's filetype, and never styles it", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new(ten_lines()) }
+    local calls = 0
+    local view = views.new({
+      current = function(candidate)
+        return candidate == model and vim.api.nvim_buf_is_valid(model.buf)
+      end,
+      render = function(markdown)
+        calls = calls + 1
+        return doubling(markdown)
+      end,
+      draw = function(target, rendered)
+        vim.api.nvim_buf_set_lines(target, 0, -1, false, rendered.lines)
+      end,
+      attach = function() end,
+      attach_window = function() end,
+      image_wait = function()
+        return 1
+      end,
+      group = "cds_too_long_test",
+      filetype = "styled",
+      style_delay = 5,
+      styled_max_lines = 5,
+    })
+    local report = require("cds.progress").new({ title = "T", plan = { "styling" } })
+    view.show(model, { report = report })
+    assert.equals("styled", vim.bo[buf].filetype)
+    assert.is_false(model.doc.styled)
+    assert.is_true(report:finished())
+    vim.wait(100)
+    assert.equals(0, calls)
+    assert.equals(10, vim.api.nvim_buf_line_count(buf))
+    local marks = {}
+    for _, row in ipairs(report:timeline()) do
+      if row.kind == "mark" then
+        marks[#marks + 1] = row.name
+      end
+    end
+    assert.same({ "Markdown drawn", "styling skipped: 10 lines, over 5" }, marks)
+    vim.api.nvim_exec_autocmds("ColorScheme", {})
+    vim.wait(50)
+    assert.equals(0, calls)
+  end)
+
   it("applies the views handed to show after the styled draw", function()
     buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_set_current_buf(buf)
