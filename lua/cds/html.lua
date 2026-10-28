@@ -12,6 +12,7 @@ local discover = require("cds.uri")
 local format = require("cds.html.format")
 local inline = require("cds.html.inline")
 local dom = require("cds.html.dom")
+local blocks = require("cds.html.blocks")
 local source_document = require("cds.document")
 local entities = require("cds.entities")
 local M = { entities = entities.entities }
@@ -59,7 +60,7 @@ end
 ---@param opts? cds.html.Opts
 ---@return cds.html.Block[]
 function M.blocks(html, opts)
-  return dom.blocks(dom.parse(html, true), opts)
+  return blocks.blocks(dom.parse(html, true), opts)
 end
 
 --- An article's HTML as Markdown lines: a blank line between blocks except
@@ -129,7 +130,7 @@ function M.page(document, opts)
     local region = dom.find(tree, name)
     if region then
       local drop = opts.drop or ((opts.region or name == "body") and site_chrome or chrome)
-      lines, anchors = format.blocks(dom.blocks(region, { base = base, links = opts.links, drop = drop }))
+      lines, anchors = format.blocks(blocks.blocks(region, { base = base, links = opts.links, drop = drop }))
       if #lines > 0 then
         if region.attrs.id then
           anchors[region.attrs.id] = 1
@@ -141,7 +142,7 @@ function M.page(document, opts)
   end
   if not lines then
     lines, anchors =
-      format.blocks(dom.blocks(tree, { base = base, links = opts.links, drop = opts.drop or site_chrome }))
+      format.blocks(blocks.blocks(tree, { base = base, links = opts.links, drop = opts.drop or site_chrome }))
   end
   local title_node = dom.find(tree, "title")
   local title = title_node and trim(dom.text(title_node):gsub("%s+", " "))
