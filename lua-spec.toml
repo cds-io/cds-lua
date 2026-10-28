@@ -1,0 +1,17 @@
+# Settings for lua-spec, the architecture checker beside this checkout
+# (make architecture-check): the module prefix (this library has no facade
+# module, so that rule has nothing to say here), the lines a module may run
+# to, counting code, prose comments and blanks (doc annotations are not
+# counted), and the modules written before the limit, each pinned at its
+# size so it can only shrink.
+[architecture]
+plugin = "cds"
+limit = 200
+
+[architecture.allow]
+"lua/cds/companion.lua" = 237
+"lua/cds/document.lua" = 356
+"lua/cds/document_view.lua" = 259
+"lua/cds/html/dom.lua" = 351
+"lua/cds/html/format.lua" = 367
+"lua/cds/progress.lua" = 239
