@@ -246,7 +246,7 @@ describe("Task execution combinators", function()
   end)
 
   it(
-    "tick hops to the next main-loop turn even from the main loop, so a scheduled callback runs between two synchronous steps",
+    "tick hops to the next main-loop turn even from the main loop, so a scheduled callback runs between steps",
     function()
       local order = {}
       local work = Task.of(1)

@@ -6,7 +6,8 @@
 --- unless given). show draws the Markdown itself at once and the styled rendering after the delay, so a reader sees a
 --- long document while vellum works on it; a document hidden when the delay ends is styled when a window shows it.
 --- Every redraw keeps each window's cursor on the same source row, mapped through the rendered blocks, and the views
---- handed to show (winsaveview tables by window) are applied once the styled draw is in. The view retries pending
+--- handed to show (winsaveview tables by window) are applied once the styled draw is in, and a cds.progress report
+--- handed to show is told of the styling phase and finished once the final draw is in. The view retries pending
 --- images and watches resize and colorscheme events while the model remains current. The model carries buf and
 --- markdown; rendering writes doc, width and draws. Hidden image retries resume on entry without restarting an
 --- exhausted budget.
@@ -34,6 +35,7 @@ local document = require("cds.document")
 
 ---@class cds.DocumentShowOptions
 ---@field views? table<integer, table> -- winsaveview tables by window, applied after the styled draw
+---@field report? cds.ProgressReport -- told of the styling phase and finished once the final draw is in
 
 ---@class cds.DocumentView
 ---@field show fun(model: cds.DocumentModel, opts?: cds.DocumentShowOptions)
@@ -77,6 +79,7 @@ function View.new(deps)
   ---@field package plain boolean -- the Markdown is drawn and the styled draw is still to come
   ---@field package styling boolean -- a styled draw is on the next tick
   ---@field package views? table<integer, table> -- the views handed to show, until applied
+  ---@field package report? cds.ProgressReport -- the report handed to show, until finished
 
   ---@type table<integer, cds.DocumentDisplayState>
   local sessions = {}
@@ -204,6 +207,10 @@ function View.new(deps)
       end
     end
     model.draws = (model.draws or 0) + 1
+    if state.plain and state.report then
+      state.report:finish()
+      state.report = nil
+    end
     state.plain = false
     restore_views(model, state, held, true)
     state.dirty, state.resume, state.scheduled = false, false, false
@@ -242,6 +249,9 @@ function View.new(deps)
       -- in its new window for the instant its TabEnter fires.
       if state.visible and not state.styling then
         state.styling = true
+        if state.report then
+          state.report:begin("styling")
+        end
         vim.schedule(function()
           state.styling = false
           if
@@ -318,6 +328,7 @@ function View.new(deps)
       plain = false,
       styling = false,
       views = opts and opts.views or nil,
+      report = opts and opts.report or nil,
     }
     local buf = model.buf
     sessions[buf] = state

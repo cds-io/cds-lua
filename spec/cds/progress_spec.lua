@@ -79,6 +79,16 @@ describe("cds.progress", function()
     assert.equals(2, report.phases[4].count)
   end)
 
+  it("keeps a phase running when begun again under its name, taking the count given", function()
+    report:begin("reading source")
+    report:begin("reading source", 32)
+    report:tick(4)
+    assert.equals(3, #report.phases)
+    assert.equals("running", report.phases[1].status)
+    assert.equals(32, report.phases[1].of)
+    assert.equals(4, report.phases[1].count)
+  end)
+
   it("stops telling an observer that unsubscribed", function()
     local seen = 0
     local off = report:subscribe(function()

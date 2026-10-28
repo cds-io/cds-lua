@@ -100,10 +100,18 @@ local function settle(self)
 end
 
 --- Starts the phase called `name`, ending the one running; `of` is the
---- units the phase will count, for a bar.
+--- units the phase will count, for a bar. Begun again under the running
+--- phase's own name, the phase stays running and takes the count given,
+--- so a stage that learns the size late can say it.
 ---@param name string
 ---@param of? integer
 function Report:begin(name, of)
+  local current = running(self)
+  if current and current.name == name then
+    current.of = of or current.of
+    changed(self)
+    return
+  end
   settle(self)
   local phase
   for _, candidate in ipairs(self.phases) do

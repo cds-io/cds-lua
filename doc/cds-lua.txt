@@ -91,6 +91,8 @@ including processes and shared document readers.
   Preserving selection on refresh ............................... |cds.redraw|
   File and JSON persistence .................................... |cds.persist|
   Window-owned companion views ............................... |cds.companion|
+  Progress dashboards over a window .......................... |cds.dashboard|
+  Progress reports ............................................ |cds.progress|
   Command orchestration ........................................ |cds.command|
   Tracking running work ....................................... |cds.activity|
   Displaying inline images ...................................... |cds.images|
@@ -306,6 +308,15 @@ Return ~
                                                             *cds.Task:on_main()*
                                 `Task:on_main`()
 Resumes composition on Neovim's main loop after a fast-event producer.
+Return ~
+`(cds.Task)`
+
+------------------------------------------------------------------------------
+                                                               *cds.Task:tick()*
+                                 `Task:tick`()
+Resumes on the next main-loop turn from any context, the main loop
+included, so what was scheduled meanwhile (a dashboard's repaint) runs
+between two synchronous steps of a chain.
 Return ~
 `(cds.Task)`
 
@@ -814,6 +825,215 @@ Parameters ~
                                                      *cds.Companion:close_all()*
                             `Companion:close_all`()
 Close every view owned by this manager.
+
+
+==============================================================================
+                                                                 *cds.dashboard*
+A few-line companion above an owner window showing a cds.progress
+report: the title and elapsed time, the phases with the one running
+marked, a bar on a phase that counts. It repaints on every change of
+the report, once per main-loop turn, keeps the focus with the owner,
+closes itself `linger` milliseconds after the report finishes or
+fails, and goes with its owner window. One manager serves many
+owners, one report each.
+
+>lua
+  local dashboard = require("cds.dashboard").new({ filetype = "rfc-progress" })
+  dashboard:open(win, report)
+<
+
+------------------------------------------------------------------------------
+Class ~
+{cds.dashboard.Options}
+Fields ~
+{filetype} `(optional)` `(string)`
+{linger} `(optional)` `(integer)` milliseconds the finished report stays; 1500 unless given
+{height} `(optional)` `(integer)` the window's rows; the report's lines, at most 8, unless given
+
+------------------------------------------------------------------------------
+                                                           *cds.dashboard.new()*
+                            `dashboard.new`({opts})
+Parameters ~
+{opts} `(optional)` `(cds.dashboard.Options)`
+Return ~
+`(cds.Dashboard)`
+
+------------------------------------------------------------------------------
+                                                        *cds.Dashboard:forget()*
+                          `Dashboard:forget`({owner})
+Drops the owner's report and subscription; the companion's own
+cleanup has closed or is closing the window.
+Parameters ~
+{owner} `(integer)`
+
+------------------------------------------------------------------------------
+                                                          *cds.Dashboard:open()*
+                      `Dashboard:open`({owner}, {report})
+Shows `report` above `owner`, focus staying with the owner, and follows
+the report to its end.
+Parameters ~
+{owner} `(integer)`
+{report} `(cds.ProgressReport)`
+Return ~
+`(cds.CompanionView?)`
+
+------------------------------------------------------------------------------
+                                                         *cds.Dashboard:close()*
+                           `Dashboard:close`({owner})
+Closes the owner's dashboard, if any.
+Parameters ~
+{owner} `(integer)`
+
+------------------------------------------------------------------------------
+                                                     *cds.Dashboard:close_all()*
+                            `Dashboard:close_all`()
+Closes every dashboard this manager opened.
+
+------------------------------------------------------------------------------
+                                                        *cds.Dashboard:report()*
+                          `Dashboard:report`({owner})
+The owner's report while its dashboard is up.
+Parameters ~
+{owner} `(integer)`
+Return ~
+`(cds.ProgressReport?)`
+
+------------------------------------------------------------------------------
+                                                        *cds.Dashboard:window()*
+                          `Dashboard:window`({owner})
+The owner's dashboard window, or nil.
+Parameters ~
+{owner} `(integer)`
+Return ~
+`(integer?)`
+
+
+==============================================================================
+                                                                  *cds.progress*
+A report of work in phases, for a dashboard or a statusline to render:
+the title, the elapsed time, the phases in order with the one running
+marked, a bar on a phase that counts (pages of 32), each finished phase
+with its seconds, and the error when one fails. `plan` names the phases
+in order so the pending ones show from the start; a phase begun under a
+name the plan lacks is appended. `lines(width)` renders it; `subscribe`
+observes every change. No editor here: `now` is a millisecond clock,
+vim.uv.now unless given.
+
+>lua
+  local report = require("cds.progress").new({
+    title = "CRS reports by topic",
+    plan = { "reading source", "parsing metadata", "styling" },
+  })
+  report:begin("reading source", 32)
+  report:tick()          -- one page in
+  report:begin("parsing metadata")   -- ends reading source
+  report:finish()
+<
+
+------------------------------------------------------------------------------
+Class ~
+{cds.ProgressPhase}
+Fields ~
+{name} `(string)`
+{status} `("pending"|"running"|"done"|"failed")`
+{started} `(optional)` `(integer)` milliseconds, on the report's clock
+{ended} `(optional)` `(integer)`
+{count} `(integer)` units done, for a phase that counts
+{of} `(optional)` `(integer)` units in all, for a phase that counts
+{err} `(optional)` `(string)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.progress.Options}
+Fields ~
+{title} `(string)`
+{plan} `(optional)` `(string[])` the phase names, in order
+{now} `(optional)` `(fun(): integer)` milliseconds; vim.uv.now unless given
+
+------------------------------------------------------------------------------
+Class ~
+{cds.ProgressReport}
+Fields ~
+{title} `(string)`
+{phases} `(cds.ProgressPhase[])`
+{now} `(fun(): integer)`
+
+------------------------------------------------------------------------------
+                                                            *cds.progress.new()*
+                             `progress.new`({opts})
+Parameters ~
+{opts} `(cds.progress.Options)`
+Return ~
+`(cds.ProgressReport)`
+
+------------------------------------------------------------------------------
+                                                            *cds.Report:begin()*
+                          `Report:begin`({name}, {of})
+Starts the phase called `name`, ending the one running; `of` is the
+units the phase will count, for a bar. Begun again under the running
+phase's own name, the phase stays running and takes the count given,
+so a stage that learns the size late can say it.
+Parameters ~
+{name} `(string)`
+{of} `(optional)` `(integer)`
+
+------------------------------------------------------------------------------
+                                                             *cds.Report:tick()*
+                               `Report:tick`({n})
+Counts `n` more units (one unless given) on the running phase.
+Parameters ~
+{n} `(optional)` `(integer)`
+
+------------------------------------------------------------------------------
+                                                             *cds.Report:done()*
+                                `Report:done`()
+Ends the running phase.
+
+------------------------------------------------------------------------------
+                                                           *cds.Report:finish()*
+                               `Report:finish`()
+Ends the running phase and the report: the title says "done in".
+
+------------------------------------------------------------------------------
+                                                             *cds.Report:fail()*
+                              `Report:fail`({err})
+Ends the report on an error: the running phase carries it.
+Parameters ~
+{err} `(string)`
+
+------------------------------------------------------------------------------
+                                                         *cds.Report:finished()*
+                              `Report:finished`()
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                          *cds.Report:elapsed()*
+                               `Report:elapsed`()
+Milliseconds since the report began, to its end once ended.
+Return ~
+`(integer)`
+
+------------------------------------------------------------------------------
+                                                        *cds.Report:subscribe()*
+                            `Report:subscribe`({fn})
+Calls `fn` with the report on every change; the function returned
+stops that.
+Parameters ~
+{fn} `(fun(report: cds.ProgressReport))`
+Return ~
+`(fun())`
+
+------------------------------------------------------------------------------
+                                                            *cds.Report:lines()*
+                            `Report:lines`({width})
+The report as lines `width` columns wide: the title with the elapsed
+time (or "done in", or "failed") at the right edge, then one line per
+phase.
+Parameters ~
+{width} `(integer)`
+Return ~
+`(string[])`
 
 
 ==============================================================================
@@ -1670,7 +1890,8 @@ rendered), attach(buf), attach_window(win), image_wait(), group and filetype, an
 unless given). show draws the Markdown itself at once and the styled rendering after the delay, so a reader sees a
 long document while vellum works on it; a document hidden when the delay ends is styled when a window shows it.
 Every redraw keeps each window's cursor on the same source row, mapped through the rendered blocks, and the views
-handed to show (winsaveview tables by window) are applied once the styled draw is in. The view retries pending
+handed to show (winsaveview tables by window) are applied once the styled draw is in, and a cds.progress report
+handed to show is told of the styling phase and finished once the final draw is in. The view retries pending
 images and watches resize and colorscheme events while the model remains current. The model carries buf and
 markdown; rendering writes doc, width and draws. Hidden image retries resume on entry without restarting an
 exhausted budget.
@@ -1705,6 +1926,7 @@ Class ~
 {cds.DocumentShowOptions}
 Fields ~
 {views} `(optional)` `(table<integer, table>)` winsaveview tables by window, applied after the styled draw
+{report} `(optional)` `(cds.ProgressReport)` told of the styling phase and finished once the final draw is in
 
 ------------------------------------------------------------------------------
 Class ~

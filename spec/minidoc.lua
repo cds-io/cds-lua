@@ -18,6 +18,8 @@ local FILES = {
   "redraw",
   "persist",
   "companion",
+  "dashboard",
+  "progress",
   "command",
   "activity",
   "images",
