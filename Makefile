@@ -1,4 +1,13 @@
+# What the gate needs on the machine: nvim; busted and gumbo 0.5-1 (the
+# HTML5 parser the html specs load) as Lua 5.1 rocks in the luarocks user
+# tree (`luarocks --lua-version=5.1 --local install busted gumbo 0.5-1`);
+# stylua and luacheck (`luarocks --lua-version=5.1 --local install
+# luacheck`, found in the user tree when PATH lacks it); lua-language-server
+# on PATH or under Mason; mini.doc. The architecture check skips without the
+# lua-spec checkout.
 NVIM ?= nvim
+STYLUA ?= stylua
+LUACHECK ?= $(if $(wildcard $(HOME)/.luarocks/bin/luacheck),$(HOME)/.luarocks/bin/luacheck,luacheck)
 # mini.doc generates doc/cds-lua.txt from the annotation blocks spec/minidoc.lua
 # names: the standalone nvim-mini/mini.doc beside this checkout (CI), or the
 # mini.nvim lazy installed, which carries it.
@@ -23,13 +32,15 @@ architecture-check: ## module size, facade imports and cycles, through lua-spec
 
 # Every cds spec runs inside Neovim: the modules are pure Lua but several
 # lean on vim.async, vim.system and vim.uv, and the runner is the one
-# calplus uses. Busted is the Lua 5.1 rock, which Neovim's LuaJIT loads.
-test: ## busted specs inside Neovim (needs busted for Lua 5.1)
+# calplus uses. Busted is the Lua 5.1 rock, which Neovim's LuaJIT loads, and
+# so is gumbo, which the html specs parse with; a missing gumbo fails those
+# specs with the install command in the message.
+test: ## busted specs inside Neovim (needs busted and gumbo for Lua 5.1)
 	$(NVIM) --headless -u NONE -i NONE -l spec/busted.lua
 
 lint: ## stylua, luacheck and the language server's type check
-	stylua --check lua spec
-	luacheck lua spec
+	$(STYLUA) --check lua spec
+	$(LUACHECK) lua spec
 	$(MAKE) typecheck
 
 # lua-language-server over lua/, with Neovim's runtime types in the library
