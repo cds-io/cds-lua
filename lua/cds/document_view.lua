@@ -193,10 +193,14 @@ function View.new(deps)
       model.doc = document.rendered(model.document or document.new(markdown), lines, marks, waiting, blocks)
       deps.draw(buf, model.doc)
       local filetype = lines and deps.filetype or "markdown"
-      if vim.bo[buf].filetype ~= filetype then
+      local changed = vim.bo[buf].filetype ~= filetype
+      if changed then
         vim.bo[buf].filetype = filetype
       end
-      if not lines then
+      -- a filetype change runs the old filetype's undo_ftplugin, which can
+      -- unmap a key the caller set under the same name (markdown's gO), so
+      -- the caller's keys go back on after it
+      if changed or not lines then
         deps.attach(buf)
       end
       for _, win in ipairs(vim.fn.win_findbuf(buf)) do

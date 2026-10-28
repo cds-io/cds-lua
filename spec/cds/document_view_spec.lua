@@ -174,6 +174,49 @@ describe("shared document display", function()
     assert.equals("styling", report.phases[2].name)
   end)
 
+  it("attaches the caller's keys again after the styled draw changes the filetype", function()
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    local model = { buf = buf, document = document.new(ten_lines()) }
+    local attached = 0
+    local view = views.new({
+      current = function(candidate)
+        return candidate == model and vim.api.nvim_buf_is_valid(model.buf)
+      end,
+      render = doubling,
+      draw = function(target, rendered)
+        vim.api.nvim_buf_set_lines(target, 0, -1, false, rendered.lines)
+      end,
+      attach = function(target)
+        attached = attached + 1
+        vim.keymap.set("n", "gO", "<Nop>", { buffer = target, desc = "caller's key" })
+      end,
+      attach_window = function() end,
+      image_wait = function()
+        return 1
+      end,
+      group = "cds_attach_test",
+      filetype = "styled",
+      style_delay = 10,
+    })
+    -- the plain draw's filetype brings an ftplugin whose undo takes the key
+    -- with it when the filetype changes, as Neovim's markdown ftplugin does
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = "markdown",
+      once = true,
+      callback = function(args)
+        vim.b[args.buf].undo_ftplugin = "silent! nunmap <buffer> gO"
+      end,
+    })
+    view.show(model)
+    assert.equals(1, attached)
+    assert.is_true(vim.wait(500, function()
+      return vim.bo[buf].filetype == "styled"
+    end))
+    assert.equals(2, attached)
+    assert.equals("caller's key", vim.fn.maparg("gO", "n", false, true).desc)
+  end)
+
   it("applies the views handed to show after the styled draw", function()
     buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_set_current_buf(buf)
