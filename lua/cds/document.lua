@@ -436,6 +436,50 @@ function M.target(source, rendered, row, col, opts)
   return select_link(source.links, row, col, opts.first)
 end
 
+--- The block of a layout holding row `at` on the side `side` (1 for source
+--- rows, 3 for rendered rows): { source offset, source count, rendered offset, rendered count }.
+---@param rendered cds.DocumentLayout
+---@param side 1|3
+---@param at integer
+---@return integer[]?
+local function block_at(rendered, side, at)
+  for _, block in ipairs(rendered.blocks or {}) do
+    if block[side] < at and at <= block[side] + block[side + 1] then
+      return block
+    end
+  end
+  return nil
+end
+
+--- The rendered row a source (Markdown) row lands on: its offset inside its
+--- block scaled to the block's rendered height, so a block vellum doubled
+--- keeps the cursor near the same text. An unstyled layout, or a row no
+--- block holds, maps to itself.
+---@param rendered cds.DocumentLayout
+---@param row integer -- a source row, counted from one
+---@return integer
+function M.rendered_row(rendered, row)
+  local block = rendered.styled and block_at(rendered, 1, row)
+  if not block then
+    return row
+  end
+  local from, count, to, rows = unpack(block)
+  return to + 1 + math.floor((row - 1 - from) * rows / count)
+end
+
+--- The source row a rendered line comes from: the inverse of rendered_row.
+---@param rendered cds.DocumentLayout
+---@param line integer -- a rendered line, counted from one
+---@return integer
+function M.source_row(rendered, line)
+  local block = rendered.styled and block_at(rendered, 3, line)
+  if not block then
+    return line
+  end
+  local from, count, to, rows = unpack(block)
+  return from + 1 + math.floor((line - 1 - to) * count / rows)
+end
+
 --- Resolve an explicit or generated anchor and map it through vellum's blocks.
 --- A compressed block lands at its first rendered line, without guessing offsets.
 ---@param doc cds.Document

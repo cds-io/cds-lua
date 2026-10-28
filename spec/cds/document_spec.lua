@@ -235,4 +235,17 @@ describe("shared document contract", function()
     assert.same({ "foo", "foo", "foo-1", "foo", "foo-2" }, bases)
     assert.same({}, document.unique_names({}))
   end)
+
+  it("maps a source row to its rendered row and back through the blocks", function()
+    local rendered = { styled = true, blocks = { { 0, 1, 0, 1 }, { 1, 9, 1, 18 } } }
+    assert.equals(1, document.rendered_row(rendered, 1))
+    assert.equals(2, document.rendered_row(rendered, 2))
+    assert.equals(10, document.rendered_row(rendered, 6))
+    assert.equals(6, document.source_row(rendered, 10))
+    assert.equals(6, document.source_row(rendered, 11))
+    assert.equals(1, document.source_row(rendered, 1))
+    -- an unstyled layout maps rows to themselves
+    assert.equals(7, document.rendered_row({ styled = false }, 7))
+    assert.equals(7, document.source_row({ styled = false }, 7))
+  end)
 end)

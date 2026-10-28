@@ -1,10 +1,15 @@
 ---@tag cds.document_view
 ---@toc_entry Document display lifecycle
 ---@text
---- new(deps) supplies show(model) and window_of(buf). Inject current(model), render(markdown, width), draw(buf,
---- rendered), attach(buf), attach_window(win), image_wait(), group and filetype. The view retries pending images
---- and watches resize and colorscheme events while the model remains current. The model carries buf and markdown;
---- rendering writes doc, width and draws. Hidden image retries resume on entry without restarting an exhausted budget.
+--- new(deps) supplies show(model, opts) and window_of(buf). Inject current(model), render(markdown, width), draw(buf,
+--- rendered), attach(buf), attach_window(win), image_wait(), group and filetype, and style_delay in milliseconds (30
+--- unless given). show draws the Markdown itself at once and the styled rendering after the delay, so a reader sees a
+--- long document while vellum works on it; a document hidden when the delay ends is styled when a window shows it.
+--- Every redraw keeps each window's cursor on the same source row, mapped through the rendered blocks, and the views
+--- handed to show (winsaveview tables by window) are applied once the styled draw is in. The view retries pending
+--- images and watches resize and colorscheme events while the model remains current. The model carries buf and
+--- markdown; rendering writes doc, width and draws. Hidden image retries resume on entry without restarting an
+--- exhausted budget.
 
 ---@class cds.DocumentModel
 ---@field buf integer
@@ -25,9 +30,13 @@ local document = require("cds.document")
 ---@field image_wait fun(): number
 ---@field group string -- autocmd namespace owned by this presenter
 ---@field filetype string -- styled rendering's filetype; Markdown is the fallback
+---@field style_delay? integer -- milliseconds between the Markdown draw and the styled one; 30 unless given
+
+---@class cds.DocumentShowOptions
+---@field views? table<integer, table> -- winsaveview tables by window, applied after the styled draw
 
 ---@class cds.DocumentView
----@field show fun(model: cds.DocumentModel)
+---@field show fun(model: cds.DocumentModel, opts?: cds.DocumentShowOptions)
 ---@field window_of fun(buf: integer): integer
 
 local View = {}
@@ -65,6 +74,9 @@ function View.new(deps)
   ---@field package scheduled boolean
   ---@field package attempt integer
   ---@field package generation integer
+  ---@field package plain boolean -- the Markdown is drawn and the styled draw is still to come
+  ---@field package styling boolean -- a styled draw is on the next tick
+  ---@field package views? table<integer, table> -- the views handed to show, until applied
 
   ---@type table<integer, cds.DocumentDisplayState>
   local sessions = {}
@@ -74,6 +86,77 @@ function View.new(deps)
   -- The first wait for vellum's images, in milliseconds, doubled for each
   -- try after it; and the tries.
   local IMAGE_TRIES = 6
+  local STYLE_DELAY = 30
+
+  --- The windows showing `buf` with their views and the source row each
+  --- cursor is on in the layout drawn now, so a redraw can put it back.
+  ---@param model cds.DocumentModel
+  ---@return { win: integer, view: table, row: integer, top: integer }[]
+  local function held_views(model)
+    local held = {}
+    for _, win in ipairs(vim.fn.win_findbuf(model.buf)) do
+      local view = vim.api.nvim_win_call(win, vim.fn.winsaveview)
+      local layout = model.doc or { styled = false }
+      held[#held + 1] = {
+        win = win,
+        view = view,
+        row = document.source_row(layout, view.lnum),
+        top = document.source_row(layout, view.topline),
+      }
+    end
+    return held
+  end
+
+  --- The held views put back in the layout drawn now, each cursor on the
+  --- rendered row of its source row; then the views handed to show, once the
+  --- draw is the final one.
+  ---@param model cds.DocumentModel
+  ---@param state cds.DocumentDisplayState
+  ---@param held { win: integer, view: table, row: integer, top: integer }[]
+  ---@param final boolean
+  local function restore_views(model, state, held, final)
+    for _, h in ipairs(held) do
+      if vim.api.nvim_win_is_valid(h.win) and vim.api.nvim_win_get_buf(h.win) == model.buf then
+        h.view.lnum = document.rendered_row(model.doc, h.row)
+        h.view.topline = document.rendered_row(model.doc, h.top)
+        vim.api.nvim_win_call(h.win, function()
+          vim.fn.winrestview(h.view)
+        end)
+      end
+    end
+    if final and state.views then
+      for win, view in pairs(state.views) do
+        if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == model.buf then
+          vim.api.nvim_win_call(win, function()
+            vim.fn.winrestview(view)
+          end)
+        end
+      end
+      state.views = nil
+    end
+  end
+
+  --- The Markdown itself into the buffer, as the first thing a reader sees
+  --- of a document and all of it on a machine without vellum: filetype
+  --- markdown, so treesitter colours it, with the caller's keys attached.
+  ---@param model cds.DocumentModel
+  ---@param state cds.DocumentDisplayState
+  local function draw_plain(model, state)
+    local buf = model.buf
+    local markdown = model.document and model.document.markdown or assert(model.markdown)
+    model.width = nil
+    model.doc = document.rendered(model.document or document.new(markdown), nil, nil, nil, nil)
+    deps.draw(buf, model.doc)
+    if vim.bo[buf].filetype ~= "markdown" then
+      vim.bo[buf].filetype = "markdown"
+    end
+    deps.attach(buf)
+    for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+      deps.attach_window(win)
+    end
+    model.draws = (model.draws or 0) + 1
+    state.plain = true
+  end
 
   --- The model's Markdown (an item's article, or a followed page) into its
   --- buffer: vellum's lines and marks, wrapped to the window's text area less
@@ -97,6 +180,7 @@ function View.new(deps)
   local function draw_item(model, state, try)
     local buf = model.buf
     local markdown = model.document and model.document.markdown or assert(model.markdown)
+    local held = held_views(model)
     local waiting
     for _ = 1, 2 do
       local width = text_width(window_of(buf))
@@ -120,6 +204,8 @@ function View.new(deps)
       end
     end
     model.draws = (model.draws or 0) + 1
+    state.plain = false
+    restore_views(model, state, held, true)
     state.dirty, state.resume, state.scheduled = false, false, false
     state.pending, state.attempt = model.doc.waiting, try
     state.visible = vim.fn.bufwinid(buf) ~= -1
@@ -149,6 +235,26 @@ function View.new(deps)
     end
     if event == "retry" then
       state.scheduled, state.resume = false, state.pending
+    end
+    if state.plain then
+      -- the styled draw still to come: on the next tick, if a window shows
+      -- the document then. The tick matters: a :tabnew shows the old buffer
+      -- in its new window for the instant its TabEnter fires.
+      if state.visible and not state.styling then
+        state.styling = true
+        vim.schedule(function()
+          state.styling = false
+          if
+            sessions[model.buf] == state
+            and state.plain
+            and deps.current(model)
+            and vim.fn.bufwinid(model.buf) ~= -1
+          then
+            draw_item(model, state, 0)
+          end
+        end)
+      end
+      return
     end
     if not model.width or not state.visible then
       return
@@ -195,7 +301,12 @@ function View.new(deps)
     })
   end
 
-  function M.show(model)
+  --- Shows the model: the Markdown now, the styled draw after the delay
+  --- while a window still shows the document (a hidden one is styled when
+  --- shown), the views in `opts` applied after the styled draw.
+  ---@param model cds.DocumentModel
+  ---@param opts? cds.DocumentShowOptions
+  function M.show(model, opts)
     local state = {
       dirty = false,
       visible = false,
@@ -204,10 +315,19 @@ function View.new(deps)
       scheduled = false,
       attempt = 0,
       generation = 0,
+      plain = false,
+      styling = false,
+      views = opts and opts.views or nil,
     }
-    sessions[model.buf] = state
-    draw_item(model, state, 0)
+    local buf = model.buf
+    sessions[buf] = state
+    draw_plain(model, state)
     watch(model, state)
+    vim.defer_fn(function()
+      if sessions[buf] == state and state.plain and deps.current(model) then
+        refresh(model, state, "style")
+      end
+    end, deps.style_delay or STYLE_DELAY)
   end
   M.window_of = window_of
   return M
