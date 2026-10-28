@@ -9,5 +9,4 @@ plugin = "cds"
 limit = 200
 
 [architecture.allow]
-"lua/cds/document_view.lua" = 259
 "lua/cds/html/dom.lua" = 351

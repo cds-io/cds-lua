@@ -21,6 +21,7 @@
 ---@field draws? integer
 
 local document = require("cds.document")
+local windows = require("cds.document_view.windows")
 
 ---@class cds.DocumentViewDependencies
 ---@field current fun(model: cds.DocumentModel): boolean
@@ -52,23 +53,6 @@ local View = {}
 ---@return cds.DocumentView
 function View.new(deps)
   local M = {}
-  --- The window showing `buf`; the current one when none does yet, as during
-  --- the read of an :edit, which runs in the window the buffer is going into.
-  ---@param buf integer
-  ---@return integer
-  local function window_of(buf)
-    local win = vim.fn.bufwinid(buf)
-    return win ~= -1 and win or vim.api.nvim_get_current_win()
-  end
-
-  --- The columns of `win` that hold text: its width less the gutter.
-  ---@param win integer
-  ---@return integer
-  local function text_width(win)
-    local info = vim.fn.getwininfo(win)[1]
-    return info.width - info.textoff
-  end
-
   -- One lifecycle per shown model. Replacing it invalidates its timers.
   ---@class cds.DocumentDisplayState
   ---@field package dirty boolean
@@ -93,54 +77,6 @@ function View.new(deps)
   local IMAGE_TRIES = 6
   local STYLE_DELAY = 30
   local STYLED_MAX_LINES = 20000
-
-  --- The windows showing `buf` with their views and the source row each
-  --- cursor is on in the layout drawn now, so a redraw can put it back.
-  ---@param model cds.DocumentModel
-  ---@return { win: integer, view: table, row: integer, top: integer }[]
-  local function held_views(model)
-    local held = {}
-    for _, win in ipairs(vim.fn.win_findbuf(model.buf)) do
-      local view = vim.api.nvim_win_call(win, vim.fn.winsaveview)
-      local layout = model.doc or { styled = false }
-      held[#held + 1] = {
-        win = win,
-        view = view,
-        row = document.source_row(layout, view.lnum),
-        top = document.source_row(layout, view.topline),
-      }
-    end
-    return held
-  end
-
-  --- The held views put back in the layout drawn now, each cursor on the
-  --- rendered row of its source row; then the views handed to show, once the
-  --- draw is the final one.
-  ---@param model cds.DocumentModel
-  ---@param state cds.DocumentDisplayState
-  ---@param held { win: integer, view: table, row: integer, top: integer }[]
-  ---@param final boolean
-  local function restore_views(model, state, held, final)
-    for _, h in ipairs(held) do
-      if vim.api.nvim_win_is_valid(h.win) and vim.api.nvim_win_get_buf(h.win) == model.buf then
-        h.view.lnum = document.rendered_row(model.doc, h.row)
-        h.view.topline = document.rendered_row(model.doc, h.top)
-        vim.api.nvim_win_call(h.win, function()
-          vim.fn.winrestview(h.view)
-        end)
-      end
-    end
-    if final and state.views then
-      for win, view in pairs(state.views) do
-        if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == model.buf then
-          vim.api.nvim_win_call(win, function()
-            vim.fn.winrestview(view)
-          end)
-        end
-      end
-      state.views = nil
-    end
-  end
 
   --- The Markdown itself into the buffer, as the first thing a reader sees
   --- of a document and all of it on a machine without vellum: filetype
@@ -202,10 +138,10 @@ function View.new(deps)
   local function draw_item(model, state, try)
     local buf = model.buf
     local markdown = model.document and model.document.markdown or assert(model.markdown)
-    local held = held_views(model)
+    local held = windows.held(model)
     local waiting
     for _ = 1, 2 do
-      local width = text_width(window_of(buf))
+      local width = windows.text_width(windows.window_of(buf))
       local lines, marks, blocks
       lines, marks, waiting, blocks = deps.render(markdown, width - 2)
       model.width = lines and width or nil
@@ -225,7 +161,7 @@ function View.new(deps)
       for _, win in ipairs(vim.fn.win_findbuf(buf)) do
         deps.attach_window(win)
       end
-      if not lines or text_width(window_of(buf)) == width then
+      if not lines or windows.text_width(windows.window_of(buf)) == width then
         break
       end
     end
@@ -236,7 +172,8 @@ function View.new(deps)
       state.report = nil
     end
     state.plain = false
-    restore_views(model, state, held, true)
+    windows.restore(model, held, state.views)
+    state.views = nil
     state.dirty, state.resume, state.scheduled = false, false, false
     state.pending, state.attempt = model.doc.waiting, try
     state.visible = vim.fn.bufwinid(buf) ~= -1
@@ -293,46 +230,11 @@ function View.new(deps)
     if not model.width or not state.visible then
       return
     end
-    if state.dirty or text_width(win) ~= model.width then
+    if state.dirty or windows.text_width(win) ~= model.width then
       draw_item(model, state, 0)
     elseif state.pending and state.resume and not state.scheduled and state.attempt < IMAGE_TRIES then
       draw_item(model, state, state.attempt + 1)
     end
-  end
-
-  --- vellum's lines are wrapped to one width and coloured for one colorscheme,
-  --- so they are drawn again when either changes, or on entry after a hidden
-  --- change: one augroup per item buffer,
-  --- gone with the buffer. The caller's ColorScheme autocmd must
-  --- invalidate the renderer's theme before these redraws run.
-  ---@param model cds.DocumentModel
-  ---@param state cds.DocumentDisplayState
-  local function watch(model, state)
-    local buf = model.buf
-    local group = vim.api.nvim_create_augroup(deps.group .. "_" .. buf, { clear = true })
-    local function changed(event)
-      refresh(model, state, event.event)
-    end
-    vim.api.nvim_create_autocmd({ "WinResized", "ColorScheme", "TabEnter" }, {
-      group = group,
-      callback = changed,
-    })
-    vim.api.nvim_create_autocmd("BufWinEnter", {
-      group = group,
-      buffer = buf,
-      callback = changed,
-    })
-    vim.api.nvim_create_autocmd("BufWipeout", {
-      group = group,
-      buffer = buf,
-      once = true,
-      callback = function()
-        if sessions[buf] == state then
-          sessions[buf] = nil
-        end
-        vim.api.nvim_del_augroup_by_id(group)
-      end,
-    })
   end
 
   --- Shows the model: the Markdown now, the styled draw after the delay
@@ -359,7 +261,16 @@ function View.new(deps)
     local markdown = model.document and model.document.markdown or assert(model.markdown)
     local too_long = #markdown > (deps.styled_max_lines or STYLED_MAX_LINES)
     draw_plain(model, state, too_long)
-    watch(model, state)
+    windows.watch(buf, deps.group, {
+      changed = function(event)
+        refresh(model, state, event)
+      end,
+      wiped = function()
+        if sessions[buf] == state then
+          sessions[buf] = nil
+        end
+      end,
+    })
     if too_long then
       return
     end
@@ -369,7 +280,7 @@ function View.new(deps)
       end
     end, deps.style_delay or STYLE_DELAY)
   end
-  M.window_of = window_of
+  M.window_of = windows.window_of
   return M
 end
 return View
