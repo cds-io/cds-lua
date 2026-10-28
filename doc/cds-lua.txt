@@ -1892,11 +1892,14 @@ for output vellum is still rendering, so a render a moment later shows
 more; and vellum's block anchors, each `{ from, count, to, rows }`
 placing `count` Markdown lines past index `from` at `rows` drawn lines
 past `to` (both from zero). Nil when vellum is not installed, and nil
-with one warning when it is and cannot do this.
+with one warning when it is and cannot do this. An image whose source is
+a base64 data URI is handed to vellum as a file under `opts.cache_dir`
+(cds/images under Neovim's cache directory unless given), since vellum
+reads paths and http(s) URLs only.
 Parameters ~
 {markdown} `(string[])`
 {width} `(integer)`
-{opts} `(optional)` `({ notify: function? })`
+{opts} `(optional)` `({ notify: function?, cache_dir: string? })`
 Return ~
 `(string[]?)` lines
 `(cds.DocumentMark[]?)` marks

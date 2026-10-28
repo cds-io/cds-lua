@@ -13,6 +13,8 @@
 -- surprise comes out as nil: the item read then shows the Markdown itself.
 -- vellum is optional, found by pcall(require), so it is neither in needs.lua
 -- nor in lazy.lua.
+local sources = require("cds.vellum.sources")
+
 local M = {}
 
 -- The widest column of text, as in vellum's own preview.
@@ -58,7 +60,7 @@ end
 -- `markdown` through vellum, `toolkit`, at `width`: the lines, the marks,
 -- the waiting and the blocks of render() below, or an error for anything
 -- that comes back in a shape not expected.
-local function compose(toolkit, markdown, width)
+local function compose(toolkit, markdown, width, cache_dir)
   if not themed then
     toolkit.theme.apply()
     -- Rendered blocks are cached with the groups they were given.
@@ -67,7 +69,7 @@ local function compose(toolkit, markdown, width)
   end
   -- The renderer parses a buffer; this one is never shown.
   local source = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(source, 0, -1, false, markdown)
+  vim.api.nvim_buf_set_lines(source, 0, -1, false, sources.materialise(markdown, cache_dir))
   local before = waits(toolkit)
   local ok, lines, rows, margin, blocks = pcall(toolkit.render.render, source, width, MEASURE)
   local after = waits(toolkit)
@@ -104,10 +106,13 @@ end
 --- more; and vellum's block anchors, each `{ from, count, to, rows }`
 --- placing `count` Markdown lines past index `from` at `rows` drawn lines
 --- past `to` (both from zero). Nil when vellum is not installed, and nil
---- with one warning when it is and cannot do this.
+--- with one warning when it is and cannot do this. An image whose source is
+--- a base64 data URI is handed to vellum as a file under `opts.cache_dir`
+--- (cds/images under Neovim's cache directory unless given), since vellum
+--- reads paths and http(s) URLs only.
 ---@param markdown string[]
 ---@param width integer
----@param opts? { notify: function? }
+---@param opts? { notify: function?, cache_dir: string? }
 ---@return string[]? lines
 ---@return cds.DocumentMark[]? marks
 ---@return boolean? waiting
@@ -117,7 +122,8 @@ function M.render(markdown, width, opts)
   if not found then
     return nil
   end
-  local ok, lines, marks, waiting, blocks = pcall(compose, found, markdown, width)
+  local cache_dir = opts and opts.cache_dir or vim.fn.stdpath("cache") .. "/cds/images"
+  local ok, lines, marks, waiting, blocks = pcall(compose, found, markdown, width, cache_dir)
   if ok then
     return lines, marks, waiting, blocks
   end
