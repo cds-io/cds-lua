@@ -1,0 +1,8 @@
+# Settings for lua-spec, the architecture checker beside this checkout
+# (make architecture-check): the module prefix (this library has no facade
+# module, so that rule has nothing to say here) and the lines a module may
+# run to, counting code, prose comments and blanks; the doc annotations a
+# function carries are not counted.
+[architecture]
+plugin = "cds"
+limit = 200

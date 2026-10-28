@@ -32,6 +32,8 @@
 --- are restored when a window survives cleanup. A companion window switched
 --- to an unrelated buffer is detached and never closed by later cleanup.
 
+local window = require("cds.companion.window")
+
 ---@class cds.companion
 local M = {}
 local sequence = 0
@@ -42,9 +44,9 @@ local sequence = 0
 ---@field buf integer
 ---@field win integer
 ---@field data table<string, any>
----@field package group integer
----@field package saved table<string, any>
----@field package applied table<string, any>
+---@field group integer                -- the autocmd group; cds.companion.window fills it
+---@field saved table<string, any>     -- window options as found, by name; cds.companion.window keeps them
+---@field applied table<string, any>   -- window options as set, by name
 
 ---@class cds.companion.Options
 ---@field filetype string?
@@ -63,42 +65,6 @@ local sequence = 0
 ---@field package id integer
 local Companion = {}
 Companion.__index = Companion
-
----@param view cds.CompanionView
-local function restore_options(view)
-  for key, value in pairs(view.saved) do
-    -- Preserve an option the reader changed after the companion set it.
-    if vim.wo[view.win][key] == view.applied[key] then
-      vim.wo[view.win][key] = value
-    end
-  end
-end
-
----@param view cds.CompanionView
-local function dispose(view)
-  if vim.api.nvim_win_is_valid(view.win) then
-    if vim.api.nvim_win_get_buf(view.win) == view.buf then
-      local other = false
-      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(vim.api.nvim_win_get_tabpage(view.win))) do
-        if win ~= view.win and vim.api.nvim_win_get_config(win).relative == "" then
-          other = true
-          break
-        end
-      end
-      if other then
-        vim.api.nvim_win_close(view.win, true)
-      else
-        vim.api.nvim_win_set_buf(view.win, vim.api.nvim_create_buf(true, false))
-        restore_options(view)
-      end
-    else
-      restore_options(view)
-    end
-  end
-  if vim.api.nvim_buf_is_valid(view.buf) then
-    vim.api.nvim_buf_delete(view.buf, { force = true })
-  end
-end
 
 --- Make an independent set of companions. No windows are opened yet.
 ---@param opts cds.companion.Options
@@ -120,10 +86,10 @@ local function release(self, owner, view, deferred)
   vim.api.nvim_del_augroup_by_id(view.group)
   if deferred then
     vim.schedule(function()
-      dispose(view)
+      window.dispose(view)
     end)
   else
-    dispose(view)
+    window.dispose(view)
   end
 end
 
@@ -222,76 +188,26 @@ function Companion:open(owner)
   if self.opts.accept and self.opts.accept(source, owner) ~= true then
     return nil
   end
-  local buf = vim.api.nvim_create_buf(false, true)
-  local win
-  local ok, err = pcall(function()
-    vim.bo[buf].bufhidden = "wipe"
-    vim.bo[buf].swapfile = false
-    vim.bo[buf].filetype = self.opts.filetype or ""
-    local config = { split = self.opts.split or "right", win = owner }
-    for _, key in ipairs({ "width", "height" }) do
-      local value = self.opts[key]
-      if value then
-        config[key] = type(value) == "function" and value() or value
-      end
-    end
-    win = vim.api.nvim_open_win(buf, true, config)
-  end)
-  if not ok then
-    if vim.api.nvim_buf_is_valid(buf) then
-      vim.api.nvim_buf_delete(buf, { force = true })
-    end
-    error(err)
-  end
-  ---@cast win integer
+  local buf, win = window.open(self.opts, owner)
   local group = vim.api.nvim_create_augroup("CdsCompanion" .. self.id .. "_" .. owner, { clear = true })
   ---@type cds.CompanionView
   local view =
     { owner = owner, source_buf = source, buf = buf, win = win, group = group, data = {}, saved = {}, applied = {} }
   self.views[owner] = view
   local initialized, failure = pcall(function()
-    for key, value in pairs(self.opts.window or {}) do
-      view.saved[key] = vim.wo[win][key]
-      view.applied[key] = value
-      vim.wo[win][key] = value
-    end
-    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-      group = group,
-      callback = function()
-        if vim.api.nvim_get_current_win() == owner then
-          self:track(owner)
-        end
+    window.apply_options(view, self.opts.window or {})
+    window.watch(view, {
+      live = function()
+        return self.views[owner] == view
       end,
-    })
-    vim.api.nvim_create_autocmd("BufWinEnter", {
-      group = group,
-      callback = function(args)
-        if self.views[owner] ~= view then
-          return
-        end
-        if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) ~= buf then
-          release(self, owner, view, true)
-        elseif vim.api.nvim_win_is_valid(owner) and vim.api.nvim_win_get_buf(owner) == args.buf then
-          if args.buf == view.source_buf then
-            self:track(owner)
-          else
-            update(self, view, args.buf)
-          end
-        end
+      track = function()
+        self:track(owner)
       end,
-    })
-    vim.api.nvim_create_autocmd("WinClosed", {
-      group = group,
-      pattern = { tostring(owner), tostring(win) },
-      callback = function()
+      release = function()
         release(self, owner, view, true)
       end,
-    })
-    vim.api.nvim_create_autocmd("BufWipeout", {
-      group = group,
-      buffer = buf,
-      callback = function()
-        release(self, owner, view, true)
+      update = function(shown)
+        update(self, view, shown)
       end,
     })
     if self.opts.on_create then
