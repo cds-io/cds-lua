@@ -38,9 +38,16 @@ local M = {}
 ---@field plan? string[]          -- the phase names, in order
 ---@field now? fun(): integer     -- milliseconds; vim.uv.now unless given
 
+---@class cds.ProgressEvent
+---@field at integer          -- milliseconds after the report began
+---@field kind "mark"|"block"
+---@field name string         -- a mark's name; for a block, the phase running
+---@field duration? integer   -- a block's milliseconds
+
 ---@class cds.ProgressReport
 ---@field title string
 ---@field phases cds.ProgressPhase[]
+---@field events cds.ProgressEvent[]
 ---@field now fun(): integer
 ---@field package started integer
 ---@field package ended? integer
@@ -59,6 +66,7 @@ function M.new(opts)
   local report = setmetatable({
     title = opts.title,
     phases = {},
+    events = {},
     now = now,
     started = now(),
     ended = nil,
@@ -70,6 +78,12 @@ function M.new(opts)
     report.phases[#report.phases + 1] = { name = name, status = "pending", count = 0 }
   end
   return report
+end
+
+---@param ms integer
+---@return string
+local function seconds(ms)
+  return ("%.1fs"):format(ms / 1000)
 end
 
 ---@param self cds.ProgressReport
@@ -162,6 +176,94 @@ function Report:fail(err)
   changed(self)
 end
 
+--- Notes a moment by name: a draw, a step outside the phases.
+---@param name string
+function Report:mark(name)
+  self.events[#self.events + 1] = { at = self.now() - self.started, kind = "mark", name = name }
+  changed(self)
+end
+
+--- Notes that the main loop was blocked for `ms` milliseconds ending now,
+--- under the phase running.
+---@param ms integer
+function Report:block(ms)
+  local phase = running(self)
+  self.events[#self.events + 1] =
+    { at = self.now() - ms - self.started, kind = "block", name = phase and phase.name or "", duration = ms }
+  changed(self)
+end
+
+---@class cds.ProgressRow
+---@field at integer
+---@field kind "phase"|"mark"|"block"|"end"
+---@field name string
+---@field duration? integer
+
+--- The run laid out in time: each phase with its length, each mark, each
+--- block, and the end, by when they started.
+---@return cds.ProgressRow[]
+function Report:timeline()
+  local rows = {}
+  local now = self.now()
+  for _, phase in ipairs(self.phases) do
+    if phase.started then
+      rows[#rows + 1] = {
+        at = phase.started - self.started,
+        kind = "phase",
+        name = phase.name,
+        duration = (phase.ended or now) - phase.started,
+      }
+    end
+  end
+  for _, event in ipairs(self.events) do
+    rows[#rows + 1] = { at = event.at, kind = event.kind, name = event.name, duration = event.duration }
+  end
+  if self.mode ~= "running" then
+    rows[#rows + 1] = { at = self:elapsed(), kind = "end", name = self.mode, duration = self:elapsed() }
+  end
+  for i, row in ipairs(rows) do
+    row.order = i
+  end
+  table.sort(rows, function(a, b)
+    if a.at ~= b.at then
+      return a.at < b.at
+    end
+    return a.order < b.order
+  end)
+  for _, row in ipairs(rows) do
+    row.order = nil
+  end
+  return rows
+end
+
+--- The timeline as lines: the title with the outcome, then one row each,
+--- the time from the start at the left and a length where there is one.
+---@return string[]
+function Report:timeline_lines()
+  local outcome
+  if self.mode == "done" then
+    outcome = "done in " .. seconds(self:elapsed())
+  elseif self.mode == "failed" then
+    outcome = "failed"
+  else
+    outcome = "running " .. seconds(self:elapsed())
+  end
+  local out = { self.title .. ": " .. outcome }
+  for _, row in ipairs(self:timeline()) do
+    local at = ("%6.2fs  "):format(row.at / 1000)
+    if row.kind == "phase" then
+      out[#out + 1] = at .. ("%-31s %4.2fs"):format(row.name, row.duration / 1000)
+    elseif row.kind == "block" then
+      out[#out + 1] = at
+        .. ("%-31s %4.2fs"):format("  main loop blocked", row.duration / 1000)
+        .. (row.name ~= "" and ("  during " .. row.name) or "")
+    else
+      out[#out + 1] = at .. row.name
+    end
+  end
+  return out
+end
+
 ---@return boolean
 function Report:finished()
   return self.mode ~= "running"
@@ -184,12 +286,6 @@ function Report:subscribe(fn)
   return function()
     self.observers[id] = nil
   end
-end
-
----@param ms integer
----@return string
-local function seconds(ms)
-  return ("%.1fs"):format(ms / 1000)
 end
 
 ---@param phase cds.ProgressPhase

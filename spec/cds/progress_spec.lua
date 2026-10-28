@@ -89,6 +89,34 @@ describe("cds.progress", function()
     assert.equals(4, report.phases[1].count)
   end)
 
+  it("keeps marks and blocks and lays the whole run out as a timeline", function()
+    report:begin("reading source", 32)
+    clock = 2200
+    report:begin("parsing metadata")
+    clock = 3400
+    report:block(900)
+    report:done()
+    clock = 3600
+    report:mark("Markdown drawn")
+    clock = 4100
+    report:finish()
+    assert.same({
+      { at = 0, kind = "phase", name = "reading source", duration = 1200 },
+      { at = 1200, kind = "phase", name = "parsing metadata", duration = 1200 },
+      { at = 1500, kind = "block", name = "parsing metadata", duration = 900 },
+      { at = 2600, kind = "mark", name = "Markdown drawn" },
+      { at = 3100, kind = "end", name = "done", duration = 3100 },
+    }, report:timeline())
+    assert.same({
+      "CRS reports by topic: done in 3.1s",
+      "  0.00s  reading source                  1.20s",
+      "  1.20s  parsing metadata                1.20s",
+      "  1.50s    main loop blocked             0.90s  during parsing metadata",
+      "  2.60s  Markdown drawn",
+      "  3.10s  done",
+    }, report:timeline_lines())
+  end)
+
   it("stops telling an observer that unsubscribed", function()
     local seen = 0
     local off = report:subscribe(function()

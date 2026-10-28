@@ -159,6 +159,9 @@ function View.new(deps)
     end
     model.draws = (model.draws or 0) + 1
     state.plain = true
+    if state.report then
+      state.report:mark("Markdown drawn")
+    end
   end
 
   --- The model's Markdown (an item's article, or a followed page) into its
@@ -212,6 +215,7 @@ function View.new(deps)
     end
     model.draws = (model.draws or 0) + 1
     if state.plain and state.report then
+      state.report:mark(model.doc.styled and "styled drawn" or "Markdown kept")
       state.report:finish()
       state.report = nil
     end

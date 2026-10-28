@@ -952,10 +952,20 @@ Fields ~
 
 ------------------------------------------------------------------------------
 Class ~
+{cds.ProgressEvent}
+Fields ~
+{at} `(integer)` milliseconds after the report began
+{kind} `("mark"|"block")`
+{name} `(string)` a mark's name; for a block, the phase running
+{duration} `(optional)` `(integer)` a block's milliseconds
+
+------------------------------------------------------------------------------
+Class ~
 {cds.ProgressReport}
 Fields ~
 {title} `(string)`
 {phases} `(cds.ProgressPhase[])`
+{events} `(cds.ProgressEvent[])`
 {now} `(fun(): integer)`
 
 ------------------------------------------------------------------------------
@@ -1000,6 +1010,46 @@ Ends the running phase and the report: the title says "done in".
 Ends the report on an error: the running phase carries it.
 Parameters ~
 {err} `(string)`
+
+------------------------------------------------------------------------------
+                                                             *cds.Report:mark()*
+                             `Report:mark`({name})
+Notes a moment by name: a draw, a step outside the phases.
+Parameters ~
+{name} `(string)`
+
+------------------------------------------------------------------------------
+                                                            *cds.Report:block()*
+                              `Report:block`({ms})
+Notes that the main loop was blocked for `ms` milliseconds ending now,
+under the phase running.
+Parameters ~
+{ms} `(integer)`
+
+------------------------------------------------------------------------------
+Class ~
+{cds.ProgressRow}
+Fields ~
+{at} `(integer)`
+{kind} `("phase"|"mark"|"block"|"end")`
+{name} `(string)`
+{duration} `(optional)` `(integer)`
+
+------------------------------------------------------------------------------
+                                                         *cds.Report:timeline()*
+                              `Report:timeline`()
+The run laid out in time: each phase with its length, each mark, each
+block, and the end, by when they started.
+Return ~
+`(cds.ProgressRow[])`
+
+------------------------------------------------------------------------------
+                                                   *cds.Report:timeline_lines()*
+                           `Report:timeline_lines`()
+The timeline as lines: the title with the outcome, then one row each,
+the time from the start at the left and a length where there is one.
+Return ~
+`(string[])`
 
 ------------------------------------------------------------------------------
                                                          *cds.Report:finished()*

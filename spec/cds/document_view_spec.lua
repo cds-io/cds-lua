@@ -172,6 +172,13 @@ describe("shared document display", function()
     assert.equals("done", report.phases[1].status)
     assert.equals("done", report.phases[2].status)
     assert.equals("styling", report.phases[2].name)
+    local marks = {}
+    for _, row in ipairs(report:timeline()) do
+      if row.kind == "mark" then
+        marks[#marks + 1] = row.name
+      end
+    end
+    assert.same({ "Markdown drawn", "styled drawn" }, marks)
   end)
 
   it("attaches the caller's keys again after the styled draw changes the filetype", function()
