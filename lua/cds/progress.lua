@@ -8,7 +8,8 @@
 --- in order so the pending ones show from the start; a phase begun under a
 --- name the plan lacks is appended. `lines(width)` renders it; `subscribe`
 --- observes every change. No editor here: `now` is a millisecond clock,
---- vim.uv.now unless given.
+--- the high-resolution one unless given (vim.uv.now is the loop's cached
+--- time, the same reading for every phase begun inside one blocked turn).
 ---
 --- >lua
 ---   local report = require("cds.progress").new({
@@ -36,7 +37,7 @@ local M = {}
 ---@class cds.progress.Options
 ---@field title string
 ---@field plan? string[]          -- the phase names, in order
----@field now? fun(): integer     -- milliseconds; vim.uv.now unless given
+---@field now? fun(): integer     -- milliseconds; the high-resolution clock unless given
 
 ---@class cds.ProgressEvent
 ---@field at integer          -- milliseconds after the report began
@@ -59,10 +60,16 @@ Report.__index = Report
 
 local BAR = 16
 
+--- Milliseconds from the high-resolution clock, read fresh on every call.
+---@return integer
+local function hr_now()
+  return math.floor(vim.uv.hrtime() / 1e6)
+end
+
 ---@param opts cds.progress.Options
 ---@return cds.ProgressReport
 function M.new(opts)
-  local now = opts.now or vim.uv.now
+  local now = opts.now or hr_now
   local report = setmetatable({
     title = opts.title,
     phases = {},

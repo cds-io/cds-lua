@@ -917,7 +917,8 @@ with its seconds, and the error when one fails. `plan` names the phases
 in order so the pending ones show from the start; a phase begun under a
 name the plan lacks is appended. `lines(width)` renders it; `subscribe`
 observes every change. No editor here: `now` is a millisecond clock,
-vim.uv.now unless given.
+the high-resolution one unless given (vim.uv.now is the loop's cached
+time, the same reading for every phase begun inside one blocked turn).
 
 >lua
   local report = require("cds.progress").new({
@@ -948,7 +949,7 @@ Class ~
 Fields ~
 {title} `(string)`
 {plan} `(optional)` `(string[])` the phase names, in order
-{now} `(optional)` `(fun(): integer)` milliseconds; vim.uv.now unless given
+{now} `(optional)` `(fun(): integer)` milliseconds; the high-resolution clock unless given
 
 ------------------------------------------------------------------------------
 Class ~
