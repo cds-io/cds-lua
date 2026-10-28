@@ -748,6 +748,9 @@ Fields ~
 {buf} `(integer)`
 {win} `(integer)`
 {data} `(table<string, any>)`
+{group} `(integer)` the autocmd group; cds.companion.window fills it
+{saved} `(table<string, any>)` window options as found, by name; cds.companion.window keeps them
+{applied} `(table<string, any>)` window options as set, by name
 
 ------------------------------------------------------------------------------
 Class ~
