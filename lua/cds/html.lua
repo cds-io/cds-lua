@@ -10,6 +10,7 @@
 
 local discover = require("cds.uri")
 local format = require("cds.html.format")
+local inline = require("cds.html.inline")
 local dom = require("cds.html.dom")
 local source_document = require("cds.document")
 local entities = require("cds.entities")
@@ -25,13 +26,13 @@ end
 ---@param text string
 ---@return string
 function M.code(text)
-  return format.code(text)
+  return inline.code(text)
 end
 --- Prose as one Markdown line: its characters escaped, and its start.
 ---@param text string
 ---@return string
 function M.escape(text)
-  return format.escape(text)
+  return inline.escape(text)
 end
 
 ---@class cds.html.Block

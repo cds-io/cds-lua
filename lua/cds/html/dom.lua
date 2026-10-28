@@ -1,6 +1,6 @@
 -- Private HTML5 DOM adapter. Gumbo owns parsing/recovery; this module owns
 -- plain decoded nodes and recursive block context. No editor or network access.
-local format = require("cds.html.format")
+local spans = require("cds.html.spans")
 local M = {}
 local skipped = { script = true, style = true, nav = true }
 
@@ -125,7 +125,7 @@ end
 function M.blocks(tree, opts)
   opts = opts or {}
   local blocks, pending, table_id = {}, {}, 0
-  local content = format.inline(opts)
+  local content = spans.inline(opts)
   -- Formatting ancestors are lexical DOM scopes. A new block/cell restarts
   -- the shared formatter with those scopes; it never guesses missing end tags.
   local active, fresh = {}, false

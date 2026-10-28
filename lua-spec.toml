@@ -12,4 +12,3 @@ limit = 200
 "lua/cds/companion.lua" = 237
 "lua/cds/document_view.lua" = 259
 "lua/cds/html/dom.lua" = 351
-"lua/cds/html/format.lua" = 367
