@@ -1832,7 +1832,17 @@ Return ~
                                                           *cds.vellum.restyle()*
                                `vellum.restyle`()
 A colorscheme clears the highlight groups: define them again on the next
-render.
+render. The generation moves, so a memo of rendered lines knows to let
+the next render through.
+
+------------------------------------------------------------------------------
+                                                       *cds.vellum.generation()*
+                             `vellum.generation`()
+How many times the theme has been invalidated: a key for a memo over
+render, since the groups a rendering names are defined by the render
+that follows a restyle.
+Return ~
+`(integer)`
 
 ------------------------------------------------------------------------------
                                                            *cds.vellum.forget()*
