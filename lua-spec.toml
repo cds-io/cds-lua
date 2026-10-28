@@ -10,7 +10,6 @@ limit = 200
 
 [architecture.allow]
 "lua/cds/companion.lua" = 237
-"lua/cds/document.lua" = 356
 "lua/cds/document_view.lua" = 259
 "lua/cds/html/dom.lua" = 351
 "lua/cds/html/format.lua" = 367

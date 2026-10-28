@@ -968,6 +968,8 @@ Fields ~
 {phases} `(cds.ProgressPhase[])`
 {events} `(cds.ProgressEvent[])`
 {now} `(fun(): integer)`
+{started} `(integer)` milliseconds, on the report's clock; the renderer reads it
+{mode} `("running"|"done"|"failed")` the renderer reads it
 
 ------------------------------------------------------------------------------
                                                             *cds.progress.new()*
@@ -1028,6 +1030,29 @@ Parameters ~
 {ms} `(integer)`
 
 ------------------------------------------------------------------------------
+                                                         *cds.Report:finished()*
+                              `Report:finished`()
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                          *cds.Report:elapsed()*
+                               `Report:elapsed`()
+Milliseconds since the report began, to its end once ended.
+Return ~
+`(integer)`
+
+------------------------------------------------------------------------------
+                                                        *cds.Report:subscribe()*
+                            `Report:subscribe`({fn})
+Calls `fn` with the report on every change; the function returned
+stops that.
+Parameters ~
+{fn} `(fun(report: cds.ProgressReport))`
+Return ~
+`(fun())`
+
+------------------------------------------------------------------------------
 Class ~
 {cds.ProgressRow}
 Fields ~
@@ -1051,29 +1076,6 @@ The timeline as lines: the title with the outcome, then one row each,
 the time from the start at the left and a length where there is one.
 Return ~
 `(string[])`
-
-------------------------------------------------------------------------------
-                                                         *cds.Report:finished()*
-                              `Report:finished`()
-Return ~
-`(boolean)`
-
-------------------------------------------------------------------------------
-                                                          *cds.Report:elapsed()*
-                               `Report:elapsed`()
-Milliseconds since the report began, to its end once ended.
-Return ~
-`(integer)`
-
-------------------------------------------------------------------------------
-                                                        *cds.Report:subscribe()*
-                            `Report:subscribe`({fn})
-Calls `fn` with the report on every change; the function returned
-stops that.
-Parameters ~
-{fn} `(fun(report: cds.ProgressReport))`
-Return ~
-`(fun())`
 
 ------------------------------------------------------------------------------
                                                             *cds.Report:lines()*
