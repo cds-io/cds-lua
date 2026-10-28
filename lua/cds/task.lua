@@ -326,6 +326,18 @@ function Task:on_main()
   end)
 end
 
+--- Resumes on the next main-loop turn from any context, the main loop
+--- included, so what was scheduled meanwhile (a dashboard's repaint) runs
+--- between two synchronous steps of a chain.
+---@return cds.Task
+function Task:tick()
+  return Task.new(function()
+    local value, err = self.evaluate()
+    async.await(1, vim.schedule)
+    return value, err
+  end)
+end
+
 --- Evaluates while holding an existing semaphore, shared across the batch.
 ---@param semaphore vim.async.Semaphore
 ---@return cds.Task
