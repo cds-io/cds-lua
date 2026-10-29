@@ -15,7 +15,23 @@ local dom = require("cds.html.dom")
 local blocks = require("cds.html.blocks")
 local source_document = require("cds.document")
 local entities = require("cds.entities")
+local dump = require("cds.html.dump")
 local M = { entities = entities.entities }
+
+--- The notice a reader shows over a page flattened(): an upstream conversion
+--- error, the layout lost at the source. Each reader adds the way out it
+--- knows (the PDF the page links) in its own markup.
+M.FLATTENED_NOTICE = dump.MESSAGE
+
+--- Whether an HTML text is a flat text dump, a PDF through a text extractor:
+--- thirty or more `<br>` making up three quarters or more of breaks plus
+--- block elements (paragraphs, list items, cells, headings, pre, quotes,
+--- definitions). A count over the text, so it costs no parse.
+---@param text string
+---@return boolean
+function M.flattened(text)
+  return dump.flattened(text)
+end
 local utf8 = entities.utf8
 
 local function trim(s)
