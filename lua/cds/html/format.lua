@@ -154,6 +154,11 @@ function M.blocks(blocks)
       record(block, 0)
     end
     local prefix = string.rep("> ", depth)
+    if depth > 0 and (not prev or (prev.quote or 0) < depth) and block.kind == "quote" then
+      -- GitHub's alert marker opens a quote as written: `[!KIND]`, a title
+      -- after it or none, which the inline escaping wrote as `\[!KIND\]`
+      lines[1] = lines[1]:gsub("^\\%[!(%a+)\\%]", "[!%1]", 1)
+    end
     for _, line in ipairs(lines) do
       put(line == "" and (prefix:gsub("%s+$", "")) or (prefix .. line), block.kind == "pre")
     end

@@ -28,6 +28,24 @@ describe("HTML conversion boundaries", function()
     assert.equals(1, page.anchors.region)
   end)
 
+  it("keeps a GitHub alert marker as written at the head of a quote, and escapes it elsewhere", function()
+    local lines = html.markdown(
+      "<blockquote><p>[!CAUTION] Upstream conversion error</p><p>text [!NOTE]</p></blockquote>"
+        .. "<p>[!TIP] prose</p><blockquote><p>q</p><p>[!TIP] later</p></blockquote>"
+    )
+    assert.same({
+      "> [!CAUTION] Upstream conversion error",
+      ">",
+      "> text \\[!NOTE\\]",
+      "",
+      "\\[!TIP\\] prose",
+      "",
+      "> q",
+      ">",
+      "> \\[!TIP\\] later",
+    }, lines)
+  end)
+
   it("keeps the first ID across paragraphs and table rows", function()
     local lines, anchors = html.markdown([[<p id="same">First</p><table>
       <tr id="same"><th>Head</th></tr><tr id="body"><td>Body</td></tr>
