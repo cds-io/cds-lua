@@ -72,6 +72,22 @@ describe("styled.render", function()
     assert.same({}, notices)
   end)
 
+  it("hands vellum a copy whose data URIs are files under the cache directory", function()
+    local dir = vim.fn.tempname()
+    local png = "\137PNG\r\n\26\n" .. ("\0"):rep(16)
+    local markdown = { "![a](data:image/png;base64," .. vim.base64.encode(png) .. ")", "", "text" }
+    local asked
+    install(function(buf)
+      asked = vim.api.nvim_buf_get_lines(buf, 0, -1, true)
+      return { "  a", "  text" }, { {}, {} }, 2, { { 0, 3, 0, 2 } }
+    end)
+    local lines = styled.render(markdown, 78, { cache_dir = dir })
+    assert.same({ "  a", "  text" }, lines)
+    assert.same({ "![a](" .. dir .. "/" .. vim.fn.sha256(png) .. ".png)", "", "text" }, asked)
+    assert.equal(1, #vim.fn.glob(dir .. "/*", false, true))
+    vim.fn.delete(dir, "rf")
+  end)
+
   it("carries a span's link on its mark, and only a link written as text", function()
     install(function()
       local spans = { { 0, 3, "Link", 100, "https://x/" }, { 4, 7, "Link", 100, { "wiki", "page" } } }
