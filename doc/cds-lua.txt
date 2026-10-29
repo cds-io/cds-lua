@@ -1658,6 +1658,25 @@ Unclosed formatting and links follow the repaired DOM across block boundaries. A
 is removed only by HTML5 parsing, not again by the renderer.
 
 ------------------------------------------------------------------------------
+                                                     *cds.html.FLATTENED_NOTICE*
+                            `html.FLATTENED_NOTICE`
+The notice a reader shows over a page flattened(): an upstream conversion
+error, the layout lost at the source. Each reader adds the way out it
+knows (the PDF the page links) in its own markup.
+
+------------------------------------------------------------------------------
+                                                          *cds.html.flattened()*
+                            `html.flattened`({text})
+Whether an HTML text is a flat text dump, a PDF through a text extractor:
+thirty or more `<br>` making up three quarters or more of breaks plus
+block elements (paragraphs, list items, cells, headings, pre, quotes,
+definitions). A count over the text, so it costs no parse.
+Parameters ~
+{text} `(string)`
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
                                                                *cds.html.code()*
                               `html.code`({text})
 `text` as a Markdown code span: one backtick each side, or two with a
